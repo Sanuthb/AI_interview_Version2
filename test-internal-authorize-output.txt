@@ -1,0 +1,33 @@
+[dotenv@17.2.3] injecting env (10) from .env -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+Testing internal authorize logic with: { email: 'tanmayrana2001@gmail.com', password: '1NH24MC142@123' }
+Searching candidates...
+Candidate found: {
+  id: 'f5b8a56c-4999-47d1-b414-ff6563c0bf0f',
+  name: 'Tanmay Rana',
+  usn: '1NH24MC142',
+  email: 'tanmayrana2001@gmail.com',
+  batch: '2024-2026',
+  dept: 'MCA'
+}
+Checking user profile...
+Profile found: {
+  id: 'daa8d59a-5fdf-4a16-bcaa-ddfe49da24bf',
+  candidate_id: 'f5b8a56c-4999-47d1-b414-ff6563c0bf0f',
+  email: 'tanmayrana2001@gmail.com',
+  usn: '1NH24MC142',
+  role: 'candidate',
+  created_at: '2026-01-11T07:04:48.863+00:00',
+  updated_at: '2026-01-11T07:04:48.938437+00:00'
+}
+Comparing passwords: '1NH24MC142@123' vs '1NH24MC142@123'
+Password matched! Success.
+User object that would be returned: {
+  id: 'daa8d59a-5fdf-4a16-bcaa-ddfe49da24bf',
+  email: 'tanmayrana2001@gmail.com',
+  name: 'Tanmay Rana',
+  usn: '1NH24MC142',
+  batch: '2024-2026',
+  dept: 'MCA',
+  candidateId: 'f5b8a56c-4999-47d1-b414-ff6563c0bf0f',
+  role: 'candidate'
+}

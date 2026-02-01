@@ -1,0 +1,721 @@
+"use client";
+
+import { useContext, useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Vapi from "@vapi-ai/web";
+import { toast } from "sonner";
+import axios from "axios";
+import {
+  getCandidateByUserId,
+  markMalpractice,
+} from "@/lib/services/candidates";
+import { getInterviewById } from "@/lib/services/interviews";
+import { useAuth } from "@/lib/contexts/auth-context";
+import { Candidate, Interview } from "@/lib/types";
+
+import {
+  Phone,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  BotMessageSquare,
+} from "lucide-react";
+import AlertConfirmation from "@/components/AlertConfirmation";
+import { InterviewContext } from "@/lib/contexts/InterviewContext";
+import { ProctoringManager } from "@/components/interview/ProctoringManager";
+
+import { useInterviewRecorder } from "@/hooks/useInterviewRecorder";
+import { RecordingConsentModal } from "@/components/interview/RecordingConsentModal";
+import { RecordingIndicator } from "@/components/interview/RecordingIndicator";
+
+export default function Page() {
+  const { user } = useAuth();
+  const interviewContext = useContext(InterviewContext);
+
+  const interviewdata = interviewContext?.interviewdata ?? {
+    Username: "",
+    jobposition: "",
+    questionlist: [],
+  };
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const vapiRef = useRef<Vapi | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const conversationBuffer = useRef<any[] | null>(null);
+  const hasEndedRef = useRef<boolean>(false);
+  const hasSavedRef = useRef<boolean>(false);
+  const hasCallStartedRef = useRef<boolean>(false);
+
+  const { interview_id } = useParams<{ interview_id: string | string[] }>();
+  const router = useRouter();
+
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [callActive, setCallActive] = useState<boolean>(false); // Used implicitly via interviewStarted
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [activeUser, setActiveUser] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [conversation, setConversation] = useState<any[]>([]);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [interview, setInterview] = useState<Interview | null>(null);
+  // resumeText state
+  const [resumeText, setResumeText] = useState<string>("");
+
+  // Recording State
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+
+  const { candidateId } = useAuth();
+
+  // Initialize Recorder
+  const { startRecording, stopRecording, isRecording, uploadQueue } =
+    useInterviewRecorder({
+      interviewId: interview?.id || "",
+      candidateId: candidate?.id || "",
+    });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id || !interview_id) return;
+
+      const normalizedInterviewId = Array.isArray(interview_id)
+        ? interview_id[0]
+        : interview_id;
+
+      try {
+        const [candData, intData] = await Promise.all([
+          getCandidateByUserId(user.id),
+          getInterviewById(normalizedInterviewId),
+        ]);
+
+        console.log("Candidate data:", candData);
+        console.log("Interview data:", intData);
+
+        if (candData) {
+          // Time Expiry Check
+          const createdAt = new Date(candData.created_at || Date.now());
+          const deadline = candData.manual_interview_deadline
+            ? new Date(candData.manual_interview_deadline)
+            : new Date(createdAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+          if (Date.now() > deadline.getTime()) {
+            toast.error("This interview link has expired (24-hour limit).");
+            router.push("/candidate/dashboard");
+            return;
+          }
+
+          // Check for blocked/locked/malpractice status
+          if (
+            candData.interview_status === "Locked" ||
+            candData.malpractice === true
+          ) {
+            toast.error(
+              "You are blocked from taking this interview. Please contact the administrator.",
+            );
+            router.push("/candidate/dashboard");
+            return;
+          }
+
+          setCandidate(candData);
+          if (candData.resume_text) {
+            setResumeText(candData.resume_text);
+          }
+        }
+        // section:  set data inside setInterview
+        if (intData) setInterview(intData);
+
+        //section: Update InterviewContext with dynamic data
+        if (candData && (intData || interviewdata)) {
+          console.log("intData=", intData);
+
+          interviewContext?.setinterviewdata({
+            Username: candData.name,
+            jobposition: intData?.title || interviewdata.jobposition,
+            questionlist: [], // Force empty as requested
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching context data:", err);
+      }
+    };
+
+    fetchData();
+  }, [user?.id, interview_id]);
+
+  // -------------------------------------------
+  // 💡 Enable Camera + Mic (like Google Meet)
+  // -------------------------------------------
+  const enableMedia = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      if (videoRef.current) videoRef.current.srcObject = stream;
+
+      setCameraEnabled(true);
+      setMicEnabled(true);
+
+      return true;
+    } catch (err) {
+      console.error("Media permission error:", err);
+      toast.error(
+        "Please enable camera and microphone to start the interview.",
+      );
+      return false;
+    }
+  };
+
+  // Disable stream
+  const disableMedia = () => {
+    try {
+      const stream = videoRef.current?.srcObject as MediaStream | null;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+
+      setCameraEnabled(false);
+      setMicEnabled(false);
+    } catch (err) {
+      console.log("Failed to disable camera/mic:", err);
+    }
+  };
+
+  const startCall = async () => {
+    const vapi = vapiRef.current;
+    hasCallStartedRef.current = false;
+
+    // Ensure camera & mic permissions and video stream
+    const mediaAllowed = await enableMedia();
+    if (!mediaAllowed) {
+      toast.error("Camera & Mic are required to start the interview.");
+      setInterviewStarted(false);
+      return;
+    }
+
+    // Dynamic Resume Info: Use text if available, fallback to URL
+    const resumeContext = resumeText
+      ? `Candidate Resume Content:\n${resumeText.substring(
+          0,
+          5000,
+        )}... (truncated)`
+      : candidate?.resume_url
+        ? `Available at ${candidate.resume_url}.`
+        : "No resume provided.";
+
+    const assistantOptions = {
+      name: "AI Recruiter",
+      firstMessage: `Hi ${interviewdata?.Username}, how are you? Ready for your interview on ${interviewdata?.jobposition}?`,
+      transcriber: {
+        provider: "deepgram",
+        model: "nova-2",
+        language: "en-US",
+      },
+      voice: {
+        provider: "11labs",
+        voiceId: "21m00Tcm4TlvDq8ikWAM",
+      },
+      model: {
+        provider: "openai",
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `
+                          You are an AI voice assistant conducting interviews.
+                          Your job is to ask candidates relevant interview questions based on their resume and the job description provided.
+
+                          **Context:**
+                          - Job Description: ${
+                            interview?.jd_text ||
+                            interview?.jd_name ||
+                            interviewdata?.jobposition
+                          }
+                          - Candidate Name: ${
+                            candidate?.name || interviewdata?.Username
+                          }
+                          - Candidate Resume Info: ${resumeContext}
+                          - Interview Duration: ${
+                            interview?.duration || 15
+                          } minutes
+
+                          **Instructions:**
+                          1. Begin with a friendly, professional introduction.
+                          2. Analyze the Job Description and the Candidate's Resume (if available).
+                          3. Generate strictly relevant interview questions.
+                          4. Ask one question at a time and wait for the candidate's response.
+                          5. Manage the interview time efficiently. You have exactly ${
+                            interview?.duration || 15
+                          } minutes.
+                             - Pace your questions to cover key areas within this timeframe.
+                             - If time is running out, wrap up with a final question or a polite closing.
+                             - Do not exceed the allocated duration significantly.
+                          6. Provide encouraging feedback and ask follow-up questions if needed.
+                          7. If the candidate struggles, offer helpful hints.
+                          8. IMPORTANT: When you decide the interview is over (or time is up), explicitly say: "Thank you for your time. Please click the red 'End Interview' button to finish."
+                          
+                          Key Guidelines:
+                          - Be friendly, engaging, and witty
+                          - Keep responses short and natural
+                          - Ensure the interview remains focused on high-quality technical or behavioral assessment suited for the role.
+                        `.trim(),
+          },
+        ],
+      },
+      // Stability & Timeout Settings
+      maxDurationSeconds: (interview?.duration || 15) * 60 + 300, // Duration + 5 min buffer
+      silenceTimeoutSeconds: 60, // Wait 60s before ending due to silence
+      firstMessageMode: "assistant-speaks-first",
+    };
+
+    console.log("assistantOptions=", assistantOptions);
+
+    try {
+      if (!vapi) {
+        throw new Error("Vapi client is not initialized.");
+      }
+      await vapi.start(assistantOptions as any);
+    } catch (error) {
+      const err = error as { message?: string };
+      const msg = `Could not start the interview: ${
+        err.message || "Unknown error"
+      }`;
+      toast.error(msg);
+      setCallError(msg);
+      setInterviewStarted(false);
+    }
+  };
+
+  // Sync refs for event listeners
+  const candidateRef = useRef<Candidate | null>(null);
+  const interviewStartedRef = useRef<boolean>(false);
+  // Ref to hold the latest GenerateFeedback function to avoid stale closures in event listeners
+  const generateFeedbackRef = useRef<((data: any) => Promise<void>) | null>(
+    null,
+  );
+
+  useEffect(() => {
+    candidateRef.current = candidate;
+  }, [candidate]);
+
+  useEffect(() => {
+    interviewStartedRef.current = interviewStarted;
+  }, [interviewStarted]);
+
+  useEffect(() => {
+    generateFeedbackRef.current = generateFeedback;
+  }); // Update on every render
+
+  // Vapi Initialization & Event Listeners (Runs ONCE)
+  useEffect(() => {
+    const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
+
+    if (!publicKey) {
+      console.error("Missing NEXT_PUBLIC_VAPI_PUBLIC_KEY for Vapi client.");
+      toast.error("Interview service is not configured correctly.");
+      return;
+    }
+
+    const vapi = new Vapi(publicKey);
+    vapiRef.current = vapi;
+
+    const handleCallStart = () => {
+      console.log("Vapi: Call has started.");
+      hasCallStartedRef.current = true;
+      toast.success("Interview has started.");
+      setElapsedTime(0); // reset timer
+      timerRef.current = window.setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    };
+
+    const handleSpeechStart = () => setActiveUser(false);
+    const handleSpeechEnd = () => setActiveUser(true);
+
+    const handleCallEnd = () => {
+      console.log("Vapi: Call has ended.");
+      toast("Interview has ended.");
+      setInterviewStarted(false); // Update state to trigger re-renders if needed
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+
+      if (!hasCallStartedRef.current) {
+        console.log(
+          "Call ended before starting. Proceeding to feedback generation...",
+        );
+      }
+
+      setTimeout(() => {
+        if (hasSavedRef.current) return;
+
+        const runGenerate = (data: unknown) => {
+          if (!Array.isArray(data)) return;
+          if (!data || hasSavedRef.current) return;
+          hasSavedRef.current = true;
+          setConversation(data);
+          console.log("Conversation saved successfully:", data);
+
+          if (generateFeedbackRef.current) {
+            generateFeedbackRef.current(data);
+          }
+        };
+
+        if (conversationBuffer.current) {
+          runGenerate(conversationBuffer.current);
+        } else {
+          console.warn(
+            "Conversation empty, using fallback for immediate exit.",
+          );
+          runGenerate([]);
+        }
+      }, 1000);
+    };
+
+    const handleMessage = (message: { conversation?: any[] }) => {
+      if (message?.conversation) {
+        conversationBuffer.current = message.conversation;
+      }
+    };
+
+    const handleError = (error: any) => {
+      if (
+        error?.message === "Meeting has ended" ||
+        error === "Meeting has ended"
+      )
+        return;
+      console.error("Vapi error:", error);
+
+      const rawMsg =
+        error?.error?.msg ||
+        error?.error?.message ||
+        error?.errorMsg ||
+        error?.message ||
+        (typeof error === "string" ? error : "") ||
+        "An unknown error occurred";
+
+      const lowerMsg = String(rawMsg).toLowerCase();
+
+      if (lowerMsg.includes("ejection") || lowerMsg.includes("kick")) {
+        console.warn(
+          "Vapi Ejection Detected. This usually means a connection timeout or room expiry.",
+        );
+      }
+
+      if (lowerMsg.includes("meeting has ended")) {
+        if (hasCallStartedRef.current) {
+          handleCallEnd();
+        } else {
+          const msg =
+            "Interview connection failed (Meeting ended immediately).";
+          setCallError(msg);
+          toast.error(msg);
+          setInterviewStarted(false);
+          if (timerRef.current !== null) {
+            clearInterval(timerRef.current);
+          }
+        }
+        return;
+      }
+
+      const msg = `Vapi Error: ${rawMsg}`;
+      setCallError(msg);
+      toast.error(msg);
+      setInterviewStarted(false);
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+    };
+
+    vapi.on("call-start", handleCallStart);
+    vapi.on("speech-start", handleSpeechStart);
+    vapi.on("speech-end", handleSpeechEnd);
+    vapi.on("call-end", handleCallEnd);
+    vapi.on("message", handleMessage);
+    vapi.on("error", handleError);
+
+    return () => {
+      vapi.removeAllListeners();
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  console.log("candidate", candidate);
+
+  const generateFeedback = async (conversationData: any) => {
+    console.log("Generating feedback with data:", conversationData);
+    try {
+      const finalConversation =
+        conversationData &&
+        Array.isArray(conversationData) &&
+        conversationData.length > 0
+          ? conversationData
+          : [
+              {
+                role: "system",
+                content:
+                  "The candidate ended the interview early or skipped the interview without any conversation. Please evaluate based on this information (likely a rejection or no-show).",
+              },
+            ];
+
+      if (!finalConversation) {
+        toast.error("No conversation data available to generate feedback.");
+        return;
+      }
+
+      const normalizedInputId = Array.isArray(interview_id)
+        ? interview_id[0]
+        : interview_id;
+
+      const targetInterviewId = normalizedInputId;
+
+      if (!candidate?.id) {
+        toast.error("Candidate information missing. Cannot save feedback.");
+        console.error("Missing candidate.id");
+        return;
+      }
+
+      if (!targetInterviewId) {
+        toast.error("Interview ID missing. Cannot save feedback.");
+        console.error("Missing interview_id");
+        return;
+      }
+
+      // const result = await axios.post("/api/ai-feedback", {
+      //   conversation: finalConversation,
+      //   candidateId: candidate.id,
+      //   interviewId: targetInterviewId,
+      // });
+
+      // console.log("Feedback result:✅", result.data);
+
+      await axios.post("/api/inngestApis/analysisFunction", {
+        candidateId: candidateId,
+        conversation: finalConversation,
+        interviewId: targetInterviewId,
+      });
+
+      if (result.data.success) {
+        toast.success("Interview report generated and saved successfully.");
+
+        // await axios.post("/api/inngestApis/analysisFunction", {
+        //   candidateId: candidateId,
+        // });
+
+        disableMedia();
+        if (timerRef.current !== null) {
+          clearInterval(timerRef.current);
+        }
+        router.push("/candidate/interview-ended");
+      } else {
+        throw new Error("Failed to generate/save report");
+      }
+    } catch (err) {
+      const e = err as any;
+      const serverMsg = e.response?.data?.error || e.message || "Unknown error";
+      console.error("Error generating feedback (Detailed):", {
+        message: e.message || "No message",
+        serverError: e.response?.data || "No server response data",
+        status: e.response?.status || "No status code",
+        originalError: e,
+      });
+      toast.error(`Failed to generate feedback: ${serverMsg}`);
+    }
+  };
+
+  const handleStartInterview = async () => {
+    // 1. Check Consent
+    if (!consentGiven) {
+      setShowConsentModal(true);
+      return;
+    }
+
+    if (vapiRef.current) {
+      // Enter Full Screen
+      const element = document.documentElement;
+      if (element.requestFullscreen) {
+        element.requestFullscreen().catch((err) => {
+          console.error("Fullscreen request failed:", err);
+          toast.error("Please enable full-screen to start the interview.");
+        });
+      }
+
+      interviewContext?.setIsInterviewing(true);
+      setInterviewStarted(true);
+      setCallError(null);
+
+      // Start Recording
+      await startRecording();
+
+      startCall();
+    } else {
+      const errorMessage =
+        "Interview service is not ready. Please refresh the page or try again.";
+      toast.error(errorMessage);
+      setCallError(errorMessage);
+    }
+  };
+
+  const handleStopInterview = () => {
+    try {
+      setLoading(true);
+      vapiRef.current?.stop();
+
+      // Stop Recording
+      stopRecording();
+
+      setInterviewStarted(false);
+      interviewContext?.setIsInterviewing(false);
+      setCallError(null);
+      disableMedia();
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch((err) => console.error(err));
+      }
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+    } catch (error: any) {
+      const msg = `Error stopping the interview: ${
+        error.message || "Unknown error"
+      }`;
+      toast.error(msg);
+      setCallError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -------------------------------------------
+  // UI (Google Meet / Zoom Style)
+  // -------------------------------------------
+  return (
+    <div className="w-full h-screen flex flex-col bg-gray-900 text-white">
+      <RecordingConsentModal
+        open={showConsentModal}
+        onConsent={() => {
+          setConsentGiven(true);
+          setShowConsentModal(false);
+          toast.success("Consent recorded. Proceeding...");
+        }}
+      />
+
+      {/* TOP BAR */}
+      <div className="h-14 bg-black/40 flex items-center justify-between px-6 shadow-lg">
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold">
+            AI Interview for{" "}
+            {interview?.title ||
+              interview?.jd_name ||
+              interviewdata?.jobposition ||
+              "Loading..."}
+          </h2>
+          <RecordingIndicator
+            isRecording={isRecording}
+            uploadQueue={uploadQueue}
+          />
+        </div>
+        {elapsedTime > 0 && (
+          <span className="text-red-500 font-mono animate-pulse">
+            {new Date(elapsedTime * 1000).toISOString().substr(11, 8)}
+          </span>
+        )}
+      </div>
+
+      {/* MAIN GRID */}
+      <div className="flex-1 grid grid-cols-2 gap-6 p-6">
+        {/* AI PANEL */}
+        <div className="relative bg-gray-800 rounded-xl flex items-center justify-center border border-gray-700">
+          <div
+            className={`bg-gray-900 p-6 rounded-full shadow-xl transition-all duration-300 ${
+              !activeUser ? "ring-4 ring-amber-400" : ""
+            }`}
+          >
+            <BotMessageSquare size={90} className="text-amber-400" />
+          </div>
+          <span className="absolute bottom-4 right-4 bg-black/60 px-3 py-1 rounded">
+            AI Interviewer
+          </span>
+        </div>
+
+        {/* VIDEO PANEL */}
+        <div className="relative bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            className="w-full h-full object-cover"
+          />
+          <span className="absolute bottom-4 right-4 bg-black/60 px-3 py-1 rounded">
+            {candidate?.name || interviewdata?.Username || "Candidate"}
+          </span>
+        </div>
+      </div>
+
+      {/* BOTTOM CONTROLS */}
+      <div className="h-20 bg-black/40 flex items-center justify-center gap-6">
+        {/* MIC TOGGLE */}
+        <button
+          className={`p-4 rounded-full ${
+            micEnabled ? "bg-gray-700" : "bg-red-600"
+          }`}
+          onClick={() => {
+            setMicEnabled(!micEnabled);
+            enableMedia();
+          }}
+        >
+          {micEnabled ? <Mic /> : <MicOff />}
+        </button>
+
+        {/* CAMERA TOGGLE */}
+        <button
+          className={`p-4 rounded-full ${
+            cameraEnabled ? "bg-gray-700" : "bg-red-600"
+          }`}
+          onClick={() => {
+            setCameraEnabled(!cameraEnabled);
+            enableMedia();
+          }}
+        >
+          {cameraEnabled ? <Video /> : <VideoOff />}
+        </button>
+
+        {!interviewStarted ? (
+          <button
+            onClick={handleStartInterview}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+          >
+            Start Interview
+          </button>
+        ) : (
+          // stop interview
+          <AlertConfirmation stopinterview={handleStopInterview}>
+            <div className="flex items-center gap-2 px-6 py-3 rounded-full bg-red-600 hover:bg-red-700 cursor-pointer transition-all">
+              <Phone size={20} />
+              <span className="font-semibold">End Interview</span>
+            </div>
+          </AlertConfirmation>
+        )}
+      </div>
+      {candidate && interview && (
+        <ProctoringManager
+          interviewId={interview.id}
+          candidateId={candidate.id}
+          videoRef={videoRef}
+          isInterviewStarted={interviewStarted}
+          onTerminate={() => {
+            handleStopInterview();
+            router.push("/candidate/interview-ended");
+          }}
+        />
+      )}
+    </div>
+  );
+}

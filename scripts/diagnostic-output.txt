@@ -1,0 +1,7 @@
+[dotenv@17.2.3] injecting env (10) from .env -- tip: ≡ƒùé∩╕Å backup and recover secrets: https://dotenvx.com/ops
+Candidate found: true
+Candidate USN: 1NH24MC142
+Candidate Email: tanmayrana2001@gmail.com
+Expected Password: 1NH24MC142@123
+Profile found: true
+Profile ID: daa8d59a-5fdf-4a16-bcaa-ddfe49da24bf

@@ -1,0 +1,4 @@
+[dotenv@17.2.3] injecting env (10) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+Supabase URL in process.env: https://dfvctvnprzcuneggxpju.supabase.co
+Testing authorize with: { email: 'tanmayrana2001@gmail.com', password: '1NH24MC142@123' }
+Authorize result: null
