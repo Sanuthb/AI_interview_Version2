@@ -32,6 +32,7 @@ export async function createCandidate(data: {
 
   if (existing) {
     // Update existing record
+    const existingRecord = existing as any;
     const { data: updated, error } = await client
       .from("candidates")
       .update({
@@ -42,7 +43,7 @@ export async function createCandidate(data: {
         resume_status: "Pending",
         interview_status: "Not Started",
       })
-      .eq("id", existing.id)
+      .eq("id", existingRecord.id)
       .select()
       .single();
 
@@ -137,7 +138,8 @@ export async function createCandidatesBulk(
 
     if (existingCandidate) {
       // 2a) Candidate exists - append interview_id to interview_ids array
-      const currentInterviewIds = existingCandidate.interview_ids || [];
+      const candidate: any = existingCandidate;
+      const currentInterviewIds = candidate.interview_ids || [];
       
       // Check if this interview is already in the array
       if (currentInterviewIds.includes(candidate.interview_id)) {
@@ -147,10 +149,10 @@ export async function createCandidatesBulk(
           .update({
             name: candidate.name,
             email: candidate.email,
-            batch: candidate.batch || existingCandidate.batch,
-            dept: candidate.dept || existingCandidate.dept,
+            batch: candidate.batch || candidate.batch,
+            dept: candidate.dept || candidate.dept,
           })
-          .eq("id", existingCandidate.id)
+          .eq("id", candidate.id)
           .select()
           .single();
 
@@ -168,11 +170,11 @@ export async function createCandidatesBulk(
           .update({
             name: candidate.name,
             email: candidate.email,
-            batch: candidate.batch || existingCandidate.batch,
-            dept: candidate.dept || existingCandidate.dept,
+            batch: candidate.batch || candidate.batch,
+            dept: candidate.dept || candidate.dept,
             interview_ids: updatedInterviewIds,
           })
-          .eq("id", existingCandidate.id)
+          .eq("id", candidate.id)
           .select()
           .single();
 
@@ -308,11 +310,12 @@ export async function addCandidateToInterview(
   }
 
   // 2) Add to candidate_interviews table
+  const candidateRecord = existingCandidate as any;
   const { data, error } = await client
     .from("candidate_interviews")
     .upsert(
       {
-        candidate_id: existingCandidate.id,
+        candidate_id: candidateRecord.id,
         interview_id: interviewId,
         status: "Pending",
         resume_status: "Pending",
@@ -330,12 +333,12 @@ export async function addCandidateToInterview(
 
   // 3) legacy support: Update interview_ids array on main candidate object if needed
   // We can keep this for now to avoid breaking other parts that might strictly read 'interview_ids'
-  const currentInterviewIds = existingCandidate.interview_ids || [];
+  const currentInterviewIds = candidateRecord.interview_ids || [];
   if (!currentInterviewIds.includes(interviewId)) {
     await client
      .from("candidates")
      .update({ interview_ids: [...currentInterviewIds, interviewId] })
-     .eq("id", existingCandidate.id);
+     .eq("id", candidateRecord.id);
   }
 
   return existingCandidate;
@@ -509,24 +512,25 @@ export async function getCandidateById(id: string): Promise<Candidate | null> {
       return null;
     }
 
-    return {
-      id: data.id,
-      name: data.name,
-      usn: data.usn,
-      email: data.email,
-      resume_score: data.resume_score,
-      resume_url: data.resume_url,
-      resume_text: data.resume_text,
-      resume_analysis: data.resume_analysis,
-      status: data.status,
-      interview_ids: data.interview_ids,
-      resume_status: data.resume_status,
-      interview_status: data.interview_status,
-      manually_promoted: data.manually_promoted,
-      override_by_admin: data.override_by_admin,
-      manual_interview_deadline: data.manual_interview_deadline,
-      created_at: data.created_at,
-    };
+      const candidate = data as any;
+      return {
+        id: candidate.id,
+        name: candidate.name,
+        usn: candidate.usn,
+        email: candidate.email,
+        resume_score: candidate.resume_score,
+        resume_url: candidate.resume_url,
+        resume_text: candidate.resume_text,
+        resume_analysis: candidate.resume_analysis,
+        status: candidate.status,
+        interview_ids: candidate.interview_ids,
+        resume_status: candidate.resume_status,
+        interview_status: candidate.interview_status,
+        manually_promoted: candidate.manually_promoted,
+        override_by_admin: candidate.override_by_admin,
+        manual_interview_deadline: candidate.manual_interview_deadline,
+        created_at: candidate.created_at,
+      };
   } catch (error: any) {
     console.error("Error in getCandidateById:", error);
     return null;
@@ -546,7 +550,7 @@ export async function getCandidateByUSN(usn: string): Promise<Candidate | null> 
       .limit(1);
 
     if (!error && data && data.length > 0) {
-      const candidate = data[0];
+      const candidate = data[0] as any;
       return {
         id: candidate.id,
         name: candidate.name,
@@ -604,7 +608,7 @@ export async function getCandidateByUserId(
           .limit(1);
 
         if (!error && data && data.length > 0) {
-          const candidate = data[0];
+          const candidate = data[0] as any;
           return {
             id: candidate.id,
             name: candidate.name,
@@ -634,16 +638,17 @@ export async function getCandidateByUserId(
     // Fallback: use candidate_id if present
     if (profile.candidate_id) {
       // Use client (adminSupabase) for getCandidateById as well
-      const { data: candidate, error: candidateError } = await client
+      const { data, error: candidateError } = await client
         .from("candidates")
         .select(CANDIDATE_COLUMNS)
         .eq("id", profile.candidate_id)
         .maybeSingle();
 
-      if (candidateError || !candidate) {
+      if (candidateError || !data) {
         return null;
       }
 
+      const candidate = data as any;
       return {
         id: candidate.id,
         name: candidate.name,

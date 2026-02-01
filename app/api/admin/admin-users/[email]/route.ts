@@ -6,17 +6,18 @@ import {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { email: string } }
+  context: { params: Promise<{ email: string }> }
 ) {
+  const { email } = await context.params;
   try {
-    const email = decodeURIComponent(params.email);
+    const decodedEmail = decodeURIComponent(email);
     const body = await req.json().catch(() => ({}));
     const { name, role } = body as {
       name?: string;
       role?: "admin" | "super_admin";
     };
 
-    await updateAdminUser(email, { name, role });
+    await updateAdminUser(decodedEmail, { name, role });
 
     return NextResponse.json({
       success: true,
@@ -33,11 +34,12 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { email: string } }
+  context: { params: Promise<{ email: string }> }
 ) {
+  const { email } = await context.params;
   try {
-    const email = decodeURIComponent(params.email);
-    await deleteAdminUser(email);
+    const decodedEmail = decodeURIComponent(email);
+    await deleteAdminUser(decodedEmail);
 
     return NextResponse.json({
       success: true,
