@@ -50,7 +50,7 @@ export async function generateReportAction(candidateId: string, interviewId: str
 
 export async function promoteCandidateAction(candidateId: string, interviewId: string) {
   try {
-    await promoteCandidate(candidateId);
+    await promoteCandidate(candidateId, interviewId);
     revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {
@@ -61,7 +61,7 @@ export async function promoteCandidateAction(candidateId: string, interviewId: s
 
 export async function lockCandidateAction(candidateId: string, interviewId: string) {
   try {
-    await lockCandidate(candidateId);
+    await lockCandidate(candidateId, interviewId);
     revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {
@@ -72,7 +72,7 @@ export async function lockCandidateAction(candidateId: string, interviewId: stri
 
 export async function reEnableCandidateAction(candidateId: string, interviewId: string, hours: number) {
   try {
-    await reEnableCandidate(candidateId, hours);
+    await reEnableCandidate(candidateId, hours, interviewId);
     revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {

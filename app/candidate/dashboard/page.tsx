@@ -35,6 +35,8 @@ interface InterviewAssignment {
     interview_type: string;
     duration: number;
     min_resume_score: number | null;
+    start_time?: string;
+    end_time?: string;
     status: string;
     created_at: string;
   };
@@ -95,11 +97,27 @@ function CandidateDashboardContent() {
     if (assignment.interview_status === "Completed") {
       return "Completed";
     }
-    if (assignment.status === "Promoted" || assignment.manually_promoted) {
-      return "Eligible";
+    if (assignment.interviews.status === "Closed") {
+      return "Closed";
+    }
+    if (assignment.interview_status === "Locked") {
+      return "Locked";
     }
     if (assignment.status === "Not Promoted") {
       return "Not Eligible";
+    }
+
+    // Scheduling states
+    const now = new Date();
+    if (assignment.interviews.start_time && now < new Date(assignment.interviews.start_time)) {
+      return "Not Started";
+    }
+    if (assignment.interviews.end_time && now > new Date(assignment.interviews.end_time)) {
+      return "Expired";
+    }
+
+    if (assignment.status === "Promoted" || assignment.manually_promoted) {
+      return "Eligible";
     }
     if (assignment.resume_score !== null && assignment.resume_score >= minScore) {
       return "Eligible";
@@ -113,13 +131,29 @@ function CandidateDashboardContent() {
   const canTakeInterview = (assignment: InterviewAssignment) => {
     const minScore = assignment.interviews.min_resume_score ?? 70;
     const isEligible = (
-      assignment.status === "Promoted" ||
-      assignment.manually_promoted ||
-      (assignment.resume_score !== null && assignment.resume_score >= minScore)
+      (assignment.status !== "Not Promoted") && (
+        assignment.status === "Promoted" ||
+        assignment.manually_promoted ||
+        (assignment.resume_score !== null && assignment.resume_score >= minScore)
+      )
     );
     
-    // Cannot take if already completed
-    return isEligible && assignment.interview_status !== "Completed";
+    if (!isEligible) return false;
+    if (assignment.interview_status === "Completed") return false;
+    if (assignment.interview_status === "Locked") return false;
+    if (assignment.interviews.status === "Closed") return false;
+    
+    // Scheduling checks
+    const now = new Date();
+    if (assignment.interviews.start_time) {
+      if (now < new Date(assignment.interviews.start_time)) return false;
+    }
+    
+    if (assignment.interviews.end_time) {
+      if (now > new Date(assignment.interviews.end_time)) return false;
+    }
+
+    return true;
   };
 
   if (isLoading) {
@@ -205,7 +239,7 @@ function CandidateDashboardContent() {
                         variant={
                           status === "Eligible" || status === "Completed"
                             ? "default"
-                            : status === "Not Eligible"
+                            : status === "Not Eligible" || status === "Closed" || status === "Expired" || status === "Locked"
                             ? "destructive"
                             : "secondary"
                         }
@@ -216,17 +250,7 @@ function CandidateDashboardContent() {
                   </div>
 
                   <div className="flex gap-2 flex-col">
-                    {!canTake && assignment.interview_status !== "Completed" && (
-                      <Button 
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
-                      >
-                        View Details
-                      </Button>
-                    )}
-                    
-                    {assignment.interview_status === "Completed" && (
+                    {assignment.interview_status === "Completed" ? (
                       <>
                         <div className="text-center py-2 text-sm font-semibold text-green-600 bg-green-50 rounded-md border border-green-200">
                           Interview Completed
@@ -239,16 +263,28 @@ function CandidateDashboardContent() {
                           View Final Analysis
                         </Button>
                       </>
-                    )}
-
-                    {canTake && (
-                       <Button
-                        className="w-full bg-green-600 hover:bg-green-700"
-                        onClick={() => router.push(`/interview/${assignment.interviews.id}`)}
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Start Interview
-                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          disabled={!canTake}
+                          onClick={() => router.push(`/interview/${assignment.interviews.id}`)}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          {status === "Not Eligible" ? "Ineligible" :
+                           status === "Not Started" ? "Not Started" :
+                           status === "Expired" ? "Expired" :
+                           status === "Locked" ? "Locked" :
+                           status === "Closed" ? "Closed" : "Start Interview"}
+                        </Button>
+                        <Button 
+                          className="w-full"
+                          variant="outline"
+                          onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
+                        >
+                          View Details
+                        </Button>
+                      </>
                     )}
                   </div>
                 </CardContent>

@@ -265,7 +265,8 @@ function ResumeUploadContent() {
                   const app = applications.find(a => a.interviews.id === value);
                   if (app && app.resume_score) {
                     setScore(app.resume_score);
-                    setEligible(app.resume_score >= 75);
+                    const threshold = app.interviews.min_resume_score ?? 70;
+                    setEligible(app.resume_score >= threshold);
                     setUploaded(true); 
                   } else {
                     setUploaded(false);
@@ -306,13 +307,22 @@ function ResumeUploadContent() {
                   type="file"
                   accept=".pdf,.doc,.docx"
                   onChange={handleFileChange}
-                  disabled={isProcessing || (uploaded && score !== null)}
+                  disabled={isProcessing || (uploaded && score !== null) || appForContext?.interviews?.status === "Closed"}
                   className="flex-1"
                 />
               </div>
               {(uploaded && score !== null) && (
                 <p className="text-sm text-amber-600 font-medium">
                   Resume attempt locked. You cannot re-upload for this interview.
+                </p>
+              )}
+                {(appForContext?.interviews?.status === "Closed" || 
+                  (appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time)) ||
+                  (appForContext?.interviews?.end_time && new Date() > new Date(appForContext.interviews.end_time))) && (
+                <p className="text-sm text-destructive font-medium">
+                  {appForContext?.interviews?.status === "Closed" ? "Interview closed." : 
+                   (appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time)) ? "Interview hasn't started yet." :
+                   "Interview window has expired."} You cannot upload resumes at this time.
                 </p>
               )}
               <p className="text-sm text-muted-foreground">
@@ -336,9 +346,47 @@ function ResumeUploadContent() {
             </Alert>
           )}
 
+          {appForContext?.interviews?.status === "Closed" && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle>Interview Closed</AlertTitle>
+              <AlertDescription>
+                This interview has been closed by the administrator. You can no longer upload resumes or participate.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time) && (
+            <Alert variant="secondary">
+              <Clock className="h-4 w-4" />
+              <AlertTitle>Interview Not Started</AlertTitle>
+              <AlertDescription>
+                This interview is scheduled to start on {new Date(appForContext.interviews.start_time).toLocaleString()}. Please return then to upload your resume.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {appForContext?.interviews?.end_time && new Date() > new Date(appForContext.interviews.end_time) && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle>Interview Expired</AlertTitle>
+              <AlertDescription>
+                The window for this interview has expired. You can no longer upload resumes.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Button
             onClick={handleUpload}
-            disabled={!file || isProcessing || !fetchedCandidateId || (uploaded && score !== null)}
+            disabled={
+              !file || 
+              isProcessing || 
+              !fetchedCandidateId || 
+              (uploaded && score !== null) || 
+              appForContext?.interviews?.status === "Closed" ||
+              (appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time)) ||
+              (appForContext?.interviews?.end_time && new Date() > new Date(appForContext.interviews.end_time))
+            }
             className="w-full"
           >
             {isProcessing ? (

@@ -21,7 +21,23 @@ export async function logAdminAction(
   }
 }
 
-export async function promoteCandidate(candidateId: string) {
+export async function promoteCandidate(candidateId: string, interviewId?: string) {
+  // 1. Update per-interview status if interviewId provided
+  if (interviewId) {
+    const { error: appError } = await supabase
+      .from('candidate_interviews')
+      .update({
+        manually_promoted: true,
+        interview_status: 'Enabled',
+        status: 'Promoted'
+      })
+      .eq('candidate_id', candidateId)
+      .eq('interview_id', interviewId);
+    
+    if (appError) throw appError;
+  }
+
+  // 2. Update global status for legacy compatibility
   const { error } = await supabase
     .from('candidates')
     .update({
@@ -32,26 +48,55 @@ export async function promoteCandidate(candidateId: string) {
     .eq('id', candidateId);
 
   if (error) throw error;
-  await logAdminAction(candidateId, 'PROMOTE', 'Manual promotion by admin');
+  await logAdminAction(candidateId, 'PROMOTE', `Promoted${interviewId ? ` for interview ${interviewId}` : ''}`);
 }
 
-export async function lockCandidate(candidateId: string) {
+export async function lockCandidate(candidateId: string, interviewId?: string) {
+  // 1. Update per-interview status if interviewId provided
+  if (interviewId) {
+    const { error: appError } = await supabase
+      .from('candidate_interviews')
+      .update({
+        interview_status: 'Locked'
+      })
+      .eq('candidate_id', candidateId)
+      .eq('interview_id', interviewId);
+    
+    if (appError) throw appError;
+  }
+
+  // 2. Update global status
   const { error } = await supabase
     .from('candidates')
     .update({
       interview_status: 'Locked',
-      // We don't change 'manually_promoted' here, just lock access
     })
     .eq('id', candidateId);
 
   if (error) throw error;
-  await logAdminAction(candidateId, 'LOCK', 'Manual lock by admin');
+  await logAdminAction(candidateId, 'LOCK', `Locked${interviewId ? ` for interview ${interviewId}` : ''}`);
 }
 
-export async function reEnableCandidate(candidateId: string, hours: number = 24) {
+export async function reEnableCandidate(candidateId: string, hours: number = 24, interviewId?: string) {
   const deadline = new Date();
   deadline.setHours(deadline.getHours() + hours);
 
+  // 1. Update per-interview status if interviewId provided
+  if (interviewId) {
+    const { error: appError } = await supabase
+      .from('candidate_interviews')
+      .update({
+        override_by_admin: true,
+        manual_interview_deadline: deadline.toISOString(),
+        interview_status: 'Enabled'
+      })
+      .eq('candidate_id', candidateId)
+      .eq('interview_id', interviewId);
+    
+    if (appError) throw appError;
+  }
+
+  // 2. Update global status
   const { error } = await supabase
     .from('candidates')
     .update({
@@ -62,5 +107,5 @@ export async function reEnableCandidate(candidateId: string, hours: number = 24)
     .eq('id', candidateId);
 
   if (error) throw error;
-  await logAdminAction(candidateId, 'RE_ENABLE', `Re-enabled for ${hours} hours`);
+  await logAdminAction(candidateId, 'RE_ENABLE', `Re-enabled for ${hours}h${interviewId ? ` for interview ${interviewId}` : ''}`);
 }

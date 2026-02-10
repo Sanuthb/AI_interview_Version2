@@ -37,12 +37,34 @@ export const analysisFunction = inngest.createFunction(
           throw new Error("Candidate or Interview not found");
         }
 
-        const report = await generateFinalReport(
-          candidate,
-          interview,
-          candidate.resume_text || "Resume text not available",
-          JSON.stringify(conversation),
-        );
+        // 1. Detect Early Exit (Empty or very short conversation)
+        const isEarlyExit = !conversation || (Array.isArray(conversation) && conversation.length < 3);
+        
+        let report;
+        if (isEarlyExit) {
+          console.log(`Early exit detected for candidate ${candidateId}. Bypassing AI generation.`);
+          report = {
+            strengths: [],
+            weaknesses: [],
+            hiringRecommendation: "No Hire",
+            riskFlags: ["Early Exit / Incomplete"],
+            finalScore: 0,
+            communicationScore: 0,
+            skillsScore: 0,
+            knowledgeScore: 0,
+            summary: "Exited in middle of interview (No conversation data available).",
+            communication_coaching: { verbal_delivery: [], structuring_answers: [] },
+            resume_vs_reality: { verified_claims: [], exaggerated_claims: [], missing_skills: [] },
+            strategic_recommendations: { resume_edits: [], study_focus: [] }
+          };
+        } else {
+          report = await generateFinalReport(
+            candidate,
+            interview,
+            candidate.resume_text || "Resume text not available",
+            JSON.stringify(conversation),
+          );
+        }
 
         if (!adminSupabase) {
           throw new Error("adminSupabase is not configured");

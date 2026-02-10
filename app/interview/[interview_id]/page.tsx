@@ -96,33 +96,7 @@ export default function Page() {
         console.log("Interview data:", intData);
 
         if (candData) {
-          // 1. Time Expiry Check
-          const createdAt = new Date(candData.created_at || Date.now());
-          const deadline = candData.manual_interview_deadline
-            ? new Date(candData.manual_interview_deadline)
-            : new Date(createdAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-
-          if (Date.now() > deadline.getTime()) {
-            toast.error("This interview link has expired (24-hour limit).");
-            router.push("/candidate/dashboard");
-            return;
-          }
-
-          // 2. Specific Interview Status Check (Completed/Locked)
-          // Look for this specific interview in the candidate's applications
-          const { getInterviewsForUSN } = await import("@/lib/services/candidates");
-          if (candData.usn) {
-            const apps = await getInterviewsForUSN(candData.usn);
-            const currentApp = apps.find(a => a.interviews.id === normalizedInterviewId);
-            
-            if (currentApp && (currentApp.interview_status === "Completed" || currentApp.interview_status === "Locked")) {
-              toast.error("You have already completed or are blocked from this interview.");
-              router.push("/candidate/dashboard");
-              return;
-            }
-          }
-
-          // 3. Global Malpractice/Blocked Check
+          // 1. Global Malpractice/Blocked Check
           if (candData.malpractice === true) {
             toast.error("Account blocked due to malpractice. Please contact administrator.");
             router.push("/candidate/dashboard");
@@ -541,7 +515,7 @@ Do NOT say anything after that.
         interviewId: targetInterviewId,
       });
 
-      if (result.status === 200) {
+      if (result.status === 200 || result.data?.success) {
         toast.success("Interview report is being generated in the background.");
         disableMedia();
         if (timerRef.current !== null) {
@@ -553,14 +527,23 @@ Do NOT say anything after that.
       }
     } catch (err) {
       const e = err as any;
-      const serverMsg = e.response?.data?.error || e.message || "Unknown error";
-      console.error("Error generating feedback (Detailed):", {
+      const errorDetails = {
         message: e.message || "No message",
         serverError: e.response?.data || "No server response data",
         status: e.response?.status || "No status code",
-        originalError: e,
-      });
-      toast.error(`Failed to generate feedback: ${serverMsg}`);
+      };
+      
+      console.error("Error generating feedback (Detailed):", errorDetails);
+      
+      // Still ensure we clean up media and timer
+      disableMedia();
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+      
+      // If it failed to queue but the interview ended, we should still move them away
+      toast.error(`Feedback queueing failed, but your session has ended.`);
+      router.push("/candidate/dashboard");
     }
   };
 

@@ -145,25 +145,47 @@ export async function removeCandidateFromInterview(
   candidateId: string,
   interviewId: string
 ): Promise<void> {
-  // Get current candidate interview_ids
+  // 1. Cascading cleanup of associated data for this specific candidate+interview pair
+  const tables = [
+    "interview_results",
+    "proctoring_events",
+    "recording_metadata",
+    "candidate_interviews",
+  ];
+
+  for (const table of tables) {
+    const { error: cleanupError } = await supabase
+      .from(table)
+      .delete()
+      .eq("candidate_id", candidateId)
+      .eq("interview_id", interviewId);
+
+    if (cleanupError) {
+      console.warn(`Note: Manual cleanup of ${table} for candidate ${candidateId} skipped or failed:`, cleanupError.message);
+    }
+  }
+
+  // 2. Fallback: Also update the global candidate interview_ids array (legacy compatibility)
   const { data: candidate, error: fetchError } = await supabase
     .from("candidates")
     .select("interview_ids")
     .eq("id", candidateId)
     .single();
 
-  if (fetchError) throw fetchError;
+  if (!fetchError && candidate) {
+    const updatedIds = (candidate.interview_ids || []).filter(
+      (id: string) => id !== interviewId
+    );
 
-  const updatedIds = (candidate.interview_ids || []).filter(
-    (id: string) => id !== interviewId
-  );
+    const { error: updateError } = await supabase
+      .from("candidates")
+      .update({ interview_ids: updatedIds })
+      .eq("id", candidateId);
 
-  const { error: updateError } = await supabase
-    .from("candidates")
-    .update({ interview_ids: updatedIds })
-    .eq("id", candidateId);
-
-  if (updateError) throw updateError;
+    if (updateError) {
+      console.error("Error updating candidate interview_ids:", updateError);
+    }
+  }
 }
 
 export async function deleteInterview(id: string): Promise<void> {

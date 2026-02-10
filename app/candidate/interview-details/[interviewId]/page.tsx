@@ -84,10 +84,59 @@ function InterviewDetailsContent({ interviewId }: { interviewId: string }) {
 
   const { interviews } = assignment;
 
-  const canTakeInterview =
-    assignment.status === "Promoted" ||
-    assignment.manually_promoted ||
-    (assignment.resume_score !== null && assignment.resume_score >= 75);
+  const canTakeInterview = (() => {
+    const minScore = interviews.min_resume_score ?? 70;
+    const isEligible = 
+      (assignment.status !== "Not Promoted") && (
+        assignment.status === "Promoted" ||
+        assignment.manually_promoted ||
+        (assignment.resume_score !== null && assignment.resume_score >= minScore)
+      );
+    
+    if (!isEligible) return false;
+    if (assignment.interview_status === "Completed") return false;
+    if (assignment.interview_status === "Locked") return false;
+    if (interviews.status === "Closed") return false;
+    
+    const now = new Date();
+    if (interviews.start_time) {
+      if (now < new Date(interviews.start_time)) return false;
+    }
+    
+    if (interviews.end_time) {
+      if (now > new Date(interviews.end_time)) return false;
+    }
+
+    return true;
+  })();
+
+  const now = new Date();
+  const isStarted = !interviews.start_time || now >= new Date(interviews.start_time);
+  const isExpired = interviews.end_time && now > new Date(interviews.end_time);
+  const isClosed = interviews.status === "Closed";
+
+  const statusText = (() => {
+    if (assignment.interview_status === "Completed") return "Completed";
+    if (isClosed) return "Interview Closed";
+    if (!isStarted) return "Not Started";
+    if (isExpired) return "Expired";
+    if (assignment.interview_status === "Locked") return "Locked";
+    if (assignment.status === "Not Promoted") return "Not Eligible";
+    
+    const minScore = interviews.min_resume_score ?? 70;
+    const meetsScore = assignment.resume_score !== null && assignment.resume_score >= minScore;
+    const isPromoted = assignment.status === "Promoted" || assignment.manually_promoted;
+    
+    if (isPromoted || meetsScore) return "Eligible";
+    if (assignment.resume_score !== null && !meetsScore) return "Not Eligible";
+    return "Selection Pending";
+  })();
+
+  const statusVariant = (() => {
+    if (statusText === "Eligible" || statusText === "Completed") return "default";
+    if (statusText === "Not Eligible" || statusText === "Interview Closed" || statusText === "Expired" || statusText === "Locked") return "destructive";
+    return "secondary";
+  })();
 
   return (
     <div className="space-y-6">
@@ -159,8 +208,8 @@ function InterviewDetailsContent({ interviewId }: { interviewId: string }) {
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <Badge variant={canTakeInterview ? "default" : "secondary"}>
-                  {canTakeInterview ? "Eligible" : "Selection Pending"}
+                <Badge variant={statusVariant}>
+                  {statusText}
                 </Badge>
               </div>
               
@@ -172,30 +221,35 @@ function InterviewDetailsContent({ interviewId }: { interviewId: string }) {
               </div>
 
               <div className="pt-4 space-y-3">
-                {canTakeInterview ? (
-                  <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={() => router.push(`/interview/${interviews.id}`)}
-                  >
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Start Interview
-                  </Button>
-                ) : (
-                    <div className="space-y-2">
-                        <Button
-                            className="w-full"
-                            onClick={() => router.push(`/candidate/resume-upload?interviewId=${interviews.id}`)}
-                        >
-                            <Upload className="mr-2 h-4 w-4" />
-                            {assignment.resume_url ? "Re-upload Resume" : "Upload Resume"}
-                        </Button>
-                        {assignment.resume_score !== null && assignment.resume_score < 75 && (
-                             <p className="text-xs text-destructive text-center">
-                                 Resume score too low for automatic eligibility.
-                             </p>
-                        )}
-                    </div>
-                )}
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={!canTakeInterview}
+                  onClick={() => router.push(`/interview/${interviews.id}`)}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  {statusText === "Interview Closed" ? "Closed" : 
+                   statusText === "Not Started" ? "Not Started" :
+                   statusText === "Expired" ? "Expired" :
+                   statusText === "Locked" ? "Locked" :
+                   statusText === "Not Eligible" ? "Ineligible" : "Start Interview"}
+                </Button>
+
+                <div className="space-y-2">
+                    <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={isClosed}
+                        onClick={() => router.push(`/candidate/resume-upload?interviewId=${interviews.id}`)}
+                    >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {isClosed ? "Closed" : (assignment.resume_url ? "Re-upload Resume" : "Upload Resume")}
+                    </Button>
+                    {assignment.resume_score !== null && assignment.resume_score < (interviews.min_resume_score ?? 70) && (
+                         <p className="text-xs text-destructive text-center">
+                             Resume score too low for automatic eligibility.
+                         </p>
+                    )}
+                </div>
               </div>
             </CardContent>
           </Card>
