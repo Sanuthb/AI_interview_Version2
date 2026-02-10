@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Interview } from "@/lib/types";
 import Link from "next/link";
-import { Eye, Calendar, Users, Trash2, Loader2 } from "lucide-react";
+import { Eye, Calendar, Users, Trash2, Loader2, Pencil } from "lucide-react";
 import { getInterviews } from "@/lib/services/interviews";
 import { toast } from "sonner";
 import {
@@ -121,6 +121,16 @@ export default function InterviewsPage() {
                     >
                       {interview.status}
                     </Badge>
+
+                    <Link href={`/admin/interviews/${interview.id}/edit`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-slate-400 hover:text-primary hover:bg-primary/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </Link>
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

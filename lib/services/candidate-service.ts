@@ -43,10 +43,17 @@ export async function checkCandidateInterviewStatus(
   }
 
   // 4. Time-based logic
-  // "Interview window" starts when? Usually it's open for 24h from interview start OR from resume upload?
-  // User req: "Each interview has start_time, end_time (start + 24 hours)"
-  // User req: "Case 1: Candidate within 24 hours ... Case 2: Candidate AFTER 24 hours"
-  // So it seems based on Interview Event 24h window, NOT candidate specific start time, UNLESS admin sets a custom expiry.
+  
+  // Check if interview has started yet
+  if (interview.start_time) {
+    const startTime = new Date(interview.start_time);
+    if (isAfter(startTime, new Date())) {
+      return { 
+        status: 'NOT_STARTED', 
+        reason: `Interview is scheduled for ${startTime.toLocaleString()}` 
+      };
+    }
+  }
   
   let endTime = interview.end_time ? new Date(interview.end_time) : null;
   // Fallback: if no end_time but validation required, use created_at + 24h
@@ -57,7 +64,7 @@ export async function checkCandidateInterviewStatus(
   }
 
   if (endTime && isAfter(new Date(), endTime)) {
-    return { status: 'EXPIRED', reason: 'Interview window closed (24h)' };
+    return { status: 'EXPIRED', reason: 'Interview window closed' };
   }
 
   // 5. Default

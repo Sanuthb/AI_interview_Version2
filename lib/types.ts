@@ -6,9 +6,11 @@ export interface Interview {
   jd_file_url?: string;
   created_at: string;
   status: "Active" | "Closed";
+  start_time?: string;
   end_time?: string;
   interview_type?: string;
   duration?: number;
+  min_resume_score?: number;
   candidate_count?: number;
 }
 

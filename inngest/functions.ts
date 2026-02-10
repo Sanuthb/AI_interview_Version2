@@ -111,32 +111,27 @@ export const analysisFunction = inngest.createFunction(
         return resultData;
       });
 
-      const generateReport = await step.run("generate-final-report", () =>
-        generatefeedbackanalysis(
-          event.data.resumeData,
-          event.data.feedbackData,
-        ),
-      );
-
-      await step.run("save-report", async () => {
-        if (!adminSupabase) {
-          throw new Error(
-            "adminSupabase is not initialized. Check environment variables.",
-          );
-        }
-        const { data, error } = await adminSupabase
-          .from("feedback_analysis")
-          .insert({
-            candidate_id: event.data.candidateId,
-            analysis: generateReport,
-          })
-          .select()
+      // Save the rich analysis to feedback_analysis table for compatibility
+      await step.run("save-rich-analysis", async () => {
+        if (!adminSupabase) return;
+        
+        // Fetch the report we just saved in the previous step
+        const { data: result } = await adminSupabase
+          .from("interview_results")
+          .select("report, candidate_id")
+          .eq("candidate_id", event.data.candidateId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single();
 
-        if (error) {
-          throw new Error(`Failed to save feedback analysis: ${error.message}`);
+        if (result?.report) {
+          await adminSupabase
+            .from("feedback_analysis")
+            .insert({
+              candidate_id: result.candidate_id,
+              analysis: result.report
+            });
         }
-        return data;
       });
     } catch (error) {
       console.error("Error in analysis function:", error);

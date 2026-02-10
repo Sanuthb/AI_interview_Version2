@@ -16,6 +16,12 @@ import axios from "axios";
 import { useAuth } from "@/lib/contexts/auth-context";
 
 // Define a basic type for the analysis data structure based on usage
+interface Metric {
+  metric: string;
+  score: number;
+  description: string;
+}
+
 interface AnalysisContent {
   resume_data_extraction: {
     candidate_name: string;
@@ -23,14 +29,14 @@ interface AnalysisContent {
     education: string;
     years_experience: string;
   };
+  performance_metrics: Metric[]; // Added for graphs
   overall_assessment: {
     match_score: number;
     hiring_status: string;
     verdict_summary: string;
   };
   feedback_analysis: {
-    technical_rating: string;
-    behavioral_rating: string;
+    overall_rating: string; // Changed from technical/behavioral
     summary: string;
     key_observations: string[];
   };
@@ -130,15 +136,17 @@ const FinalAnalysis = () => {
   );
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return "text-green-600";
-    if (score >= 40) return "text-yellow-600";
-    return "text-red-600";
+    if (score >= 80) return "text-emerald-400";
+    if (score >= 60) return "text-sky-400";
+    if (score >= 40) return "text-amber-400";
+    return "text-rose-400";
   };
 
   const getScoreBgColor = (score: number) => {
-    if (score >= 70) return "bg-green-900/50 border-green-700";
-    if (score >= 40) return "bg-yellow-900/50 border-yellow-700";
-    return "bg-red-900/50 border-red-700";
+    if (score >= 80) return "bg-emerald-500/10 border-emerald-500/30";
+    if (score >= 60) return "bg-sky-500/10 border-sky-500/30";
+    if (score >= 40) return "bg-amber-500/10 border-amber-500/30";
+    return "bg-rose-500/10 border-rose-500/30";
   };
 
   if (!analysis) {
@@ -154,6 +162,29 @@ const FinalAnalysis = () => {
 
   // The record from Supabase contains the analysis in an 'analysis' column
   const data = analysis.analysis;
+
+  const PerformanceBar = ({ metric, score, description }: Metric) => (
+    <div className="mb-6 last:mb-0">
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <span className="text-sm font-semibold text-white">{metric}</span>
+          <p className="text-xs text-gray-400">{description}</p>
+        </div>
+        <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}%</span>
+      </div>
+      <div className="h-2.5 w-full bg-slate-700/50 rounded-full overflow-hidden border border-slate-600/30">
+        <div 
+          className={`h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
+            score >= 80 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 
+            score >= 60 ? 'bg-gradient-to-r from-sky-600 to-sky-400' :
+            score >= 40 ? 'bg-gradient-to-r from-amber-600 to-amber-400' : 
+            'bg-gradient-to-r from-rose-600 to-rose-400'
+          }`}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br  py-6 px-4 sm:py-8 sm:px-6 lg:px-8">
@@ -196,30 +227,46 @@ const FinalAnalysis = () => {
           </div>
         </div>
 
+        {/* Performance Metrics (Graphs) */}
+        {data.performance_metrics && (
+          <Section title="Performance Metrics" icon={TrendingUp} id="metrics">
+            <div className="mt-6">
+              {data.performance_metrics.map((m, idx) => (
+                <PerformanceBar key={idx} {...m} />
+              ))}
+            </div>
+          </Section>
+        )}
+
         {/* Overall Assessment */}
         <Section title="Overall Verdict" icon={Target} id="verdict">
           <div className="mt-4 space-y-4">
-            <div className="border-l-4 border-red-500 p-4 rounded bg-gray-900/50">
+            <div className="border-l-4 border-blue-500 p-4 rounded bg-gray-900/50">
               <p className="text-gray-300 leading-relaxed text-sm sm:text-base">
                 {data.overall_assessment.verdict_summary}
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4">
-              <div className="bg-gray-900/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                <p className="text-xs sm:text-sm text-gray-300 font-medium">
-                  Technical Rating
-                </p>
-                <p className="text-lg sm:text-xl font-bold text-red-600 mt-1">
-                  {data.feedback_analysis.technical_rating}
-                </p>
-              </div>
-              <div className="bg-gray-900/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                <p className="text-xs sm:text-sm text-gray-300 font-medium">
-                  Behavioral Rating
-                </p>
-                <p className="text-lg sm:text-xl font-bold text-red-600 mt-1">
-                  {data.feedback_analysis.behavioral_rating}
-                </p>
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-4">
+              <div className="bg-gray-900/50 p-3 sm:p-4 rounded-lg border border-gray-700 flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-300 font-medium">
+                    Overall Rating
+                  </p>
+                  <p className="text-lg sm:text-xl font-bold text-blue-400 mt-1">
+                    {data.feedback_analysis.overall_rating}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs sm:text-sm text-gray-300 font-medium">
+                    Hiring Status
+                  </p>
+                  <p className={`text-lg sm:text-xl font-bold ${
+                    data.overall_assessment.hiring_status.includes("Strong") ? "text-green-500" : 
+                    data.overall_assessment.hiring_status.includes("Hire") ? "text-blue-400" : "text-red-500"
+                  } mt-1`}>
+                    {data.overall_assessment.hiring_status}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

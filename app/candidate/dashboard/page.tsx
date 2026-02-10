@@ -34,6 +34,7 @@ interface InterviewAssignment {
     jd_name: string;
     interview_type: string;
     duration: number;
+    min_resume_score: number | null;
     status: string;
     created_at: string;
   };
@@ -89,6 +90,8 @@ function CandidateDashboardContent() {
   }, [user]);
 
   const getInterviewStatus = (assignment: InterviewAssignment) => {
+    const minScore = assignment.interviews.min_resume_score ?? 70;
+    
     if (assignment.interview_status === "Completed") {
       return "Completed";
     }
@@ -98,21 +101,25 @@ function CandidateDashboardContent() {
     if (assignment.status === "Not Promoted") {
       return "Not Eligible";
     }
-    if (assignment.resume_score !== null && assignment.resume_score >= 75) {
+    if (assignment.resume_score !== null && assignment.resume_score >= minScore) {
       return "Eligible";
     }
-    if (assignment.resume_score !== null && assignment.resume_score < 75) {
+    if (assignment.resume_score !== null && assignment.resume_score < minScore) {
       return "Not Eligible";
     }
     return "Pending";
   };
 
   const canTakeInterview = (assignment: InterviewAssignment) => {
-    return (
+    const minScore = assignment.interviews.min_resume_score ?? 70;
+    const isEligible = (
       assignment.status === "Promoted" ||
       assignment.manually_promoted ||
-      (assignment.resume_score !== null && assignment.resume_score >= 75)
+      (assignment.resume_score !== null && assignment.resume_score >= minScore)
     );
+    
+    // Cannot take if already completed
+    return isEligible && assignment.interview_status !== "Completed";
   };
 
   if (isLoading) {
@@ -209,14 +216,31 @@ function CandidateDashboardContent() {
                   </div>
 
                   <div className="flex gap-2 flex-col">
-                    {!canTake && (<Button 
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
-                    >
-                      View Details
-                    </Button>)
-          }
+                    {!canTake && assignment.interview_status !== "Completed" && (
+                      <Button 
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
+                      >
+                        View Details
+                      </Button>
+                    )}
+                    
+                    {assignment.interview_status === "Completed" && (
+                      <>
+                        <div className="text-center py-2 text-sm font-semibold text-green-600 bg-green-50 rounded-md border border-green-200">
+                          Interview Completed
+                        </div>
+                        <Button
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                          onClick={() => router.push(`/candidate/feedbackanalysis`)}
+                        >
+                          <FileText className="mr-2 h-4 w-4" />
+                          View Final Analysis
+                        </Button>
+                      </>
+                    )}
+
                     {canTake && (
                        <Button
                         className="w-full bg-green-600 hover:bg-green-700"

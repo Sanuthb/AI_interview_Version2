@@ -114,7 +114,7 @@ export default async function InterviewDashboardPage({ params }: PageProps) {
           <CardTitle>Candidate Results</CardTitle>
         </CardHeader>
         <CardContent>
-          <CandidateTable candidates={candidates} />
+          <CandidateTable candidates={candidates} interviewId={interviewId} />
         </CardContent>
       </Card>
     </div>

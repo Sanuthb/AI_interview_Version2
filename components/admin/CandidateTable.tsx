@@ -20,17 +20,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
 
 interface CandidateTableProps {
   candidates: Candidate[];
+  interviewId: string;
 }
 
-export function CandidateTable({ candidates }: CandidateTableProps) {
+export function CandidateTable({
+  candidates,
+  interviewId,
+}: CandidateTableProps) {
+  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [scoreFilter, setScoreFilter] = useState("all");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const filteredCandidates = candidates.filter((c) => {
     const matchesSearch =
@@ -65,30 +74,39 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
           />
         </div>
         <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="promoted">Promoted</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="locked">Locked</SelectItem>
-              <SelectItem value="enabled">Enabled</SelectItem>
-            </SelectContent>
-          </Select>
+          {mounted ? (
+            <>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="promoted">Promoted</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="locked">Locked</SelectItem>
+                  <SelectItem value="enabled">Enabled</SelectItem>
+                </SelectContent>
+              </Select>
 
-          <Select value={scoreFilter} onValueChange={setScoreFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Resume Score" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Any Score</SelectItem>
-              <SelectItem value="high">High (80%+)</SelectItem>
-              <SelectItem value="mid">Mid (50-79%)</SelectItem>
-              <SelectItem value="low">Low (&lt;50%)</SelectItem>
-            </SelectContent>
-          </Select>
+              <Select value={scoreFilter} onValueChange={setScoreFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Resume Score" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Score</SelectItem>
+                  <SelectItem value="high">High (80%+)</SelectItem>
+                  <SelectItem value="mid">Mid (50-79%)</SelectItem>
+                  <SelectItem value="low">Low (&lt;50%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <>
+              <div className="h-9 w-[180px] rounded-md border border-input bg-transparent" />
+              <div className="h-9 w-[180px] rounded-md border border-input bg-transparent" />
+            </>
+          )}
         </div>
       </div>
 
@@ -174,7 +192,10 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <CandidateActions candidate={candidate} />
+                      <CandidateActions
+                        candidate={candidate}
+                        interviewId={interviewId}
+                      />
                     </TableCell>
                   </TableRow>
                 )

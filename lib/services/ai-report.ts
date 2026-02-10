@@ -3,6 +3,7 @@ import { AIService } from '../services/ai-service';
 import { Candidate, Interview } from '@/lib/types';
 
 export interface AIReportData {
+  // Scorecard
   strengths: string[];
   weaknesses: string[];
   hiringRecommendation: "Strong Hire" | "Hire" | "Weak Hire" | "No Hire";
@@ -12,6 +13,22 @@ export interface AIReportData {
   skillsScore: number;
   knowledgeScore: number;
   summary: string;
+
+  // AI Coaching (Deep Dive)
+  performance_metrics?: Array<{ metric: string; score: number; description: string }>;
+  resume_vs_reality?: {
+    verified_claims: string[];
+    exaggerated_claims: string[];
+    missing_skills: string[];
+  };
+  strategic_recommendations?: {
+    resume_edits: string[];
+    study_focus: string[];
+  };
+  communication_coaching?: {
+    verbal_delivery: string[];
+    structuring_answers: string[];
+  };
 }
 
 export async function generateFinalReport(
@@ -22,7 +39,8 @@ export async function generateFinalReport(
 ): Promise<AIReportData> {
   try {
     const prompt = `
-      You are an expert HR Interviewer. Generate a final hiring report for a candidate based on their interview for the following position.
+      You are an expert HR Interviewer and Career Coach. Generate a comprehensive "Intelligence Report" for a candidate based on their interview.
+      This report will be used for BOTH hiring decisions and candidate career coaching.
 
       **Job Position/Description:**
       ${interview.title}
@@ -35,8 +53,8 @@ export async function generateFinalReport(
       ${interviewTranscript.substring(0, 5000)}
 
       **Task:**
-      Analyze the candidate based on the JD, Resume, and Interview performance.
-      Provide a structured JSON output with specific scores (0-100) for communication, technical skills, and domain knowledge.
+      Analyze the candidate deeply based on the JD, Resume, and Interview performance.
+      Provide a structured JSON output with evaluation metrics AND coaching insights.
 
       **Output Format (JSON Only):**
       {
@@ -48,7 +66,20 @@ export async function generateFinalReport(
         "communicationScore": 0-100,
         "skillsScore": 0-100,
         "knowledgeScore": 0-100,
-        "summary": "Short paragraph summary focusing on overall fit"
+        "summary": "Short paragraph summary focusing on overall fit",
+        "communication_coaching": {
+          "verbal_delivery": ["tip1", "tip2"],
+          "structuring_answers": ["tip1", "tip2"]
+        },
+        "resume_vs_reality": {
+          "verified_claims": ["claim1"],
+          "exaggerated_claims": ["claim1"],
+          "missing_skills": ["skill1"]
+        },
+        "strategic_recommendations": {
+          "resume_edits": ["edit1"],
+          "study_focus": ["topic1"]
+        }
       }
     `;
 

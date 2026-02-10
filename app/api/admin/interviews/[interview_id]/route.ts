@@ -3,10 +3,10 @@ import { deleteInterview } from "@/lib/services/interviews";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ interview_id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { interview_id: id } = await params;
     await deleteInterview(id);
     return NextResponse.json({ success: true, message: "Interview deleted successfully" });
   } catch (error: any) {

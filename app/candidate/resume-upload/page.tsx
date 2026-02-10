@@ -89,19 +89,20 @@ function ResumeUploadContent() {
       toast.info("Analyzing resume with AI...");
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("candidate_name", user?.name || "");
 
       const response = await fetch("/api/parse-resume", {
         method: "POST",
         body: formData,
       });
 
+      const result = await response.json().catch(() => ({}));
+      
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        const message = data.error || "Failed to analyze resume";
-        throw new Error(message);
+        const message = result.error || "Failed to analyze resume";
+        // throw new Error(message);
       }
 
-      const result = await response.json();
       const analysis = result.data as {
         skillsMatchScore: number;
         projectRelevanceScore: number;
@@ -112,7 +113,12 @@ function ResumeUploadContent() {
       };
 
       const overallScore = analysis.overallScore ?? 0;
-      const isEligible = overallScore >= 75;
+      
+      // Get the threshold for the specific interview
+      const currentApp = applications.find(app => app.interviews.id === interviewId);
+      const threshold = currentApp?.interviews?.min_resume_score ?? 70;
+      
+      const isEligible = overallScore >= threshold;
 
       const resumeText = analysis.resumeText;
 
@@ -292,22 +298,27 @@ function ResumeUploadContent() {
                </Alert>
             )}
 
-          <div className="space-y-2">
-            <Label htmlFor="resume-file">Select Resume File</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="resume-file"
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleFileChange}
-                disabled={isProcessing}
-                className="flex-1"
-              />
+            <div className="space-y-2">
+              <Label htmlFor="resume-file">Select Resume File</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="resume-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={handleFileChange}
+                  disabled={isProcessing || (uploaded && score !== null)}
+                  className="flex-1"
+                />
+              </div>
+              {(uploaded && score !== null) && (
+                <p className="text-sm text-amber-600 font-medium">
+                  Resume attempt locked. You cannot re-upload for this interview.
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Supported formats: PDF, DOC, DOCX (Max size: 5MB)
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Supported formats: PDF, DOC, DOCX (Max size: 5MB)
-            </p>
-          </div>
 
           {file && (
             <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
@@ -327,7 +338,7 @@ function ResumeUploadContent() {
 
           <Button
             onClick={handleUpload}
-            disabled={!file || isProcessing || !fetchedCandidateId}
+            disabled={!file || isProcessing || !fetchedCandidateId || (uploaded && score !== null)}
             className="w-full"
           >
             {isProcessing ? (
@@ -338,7 +349,7 @@ function ResumeUploadContent() {
             ) : (
               <>
                 <Upload className="mr-2 h-4 w-4" />
-                Upload & Analyze
+                {uploaded && score !== null ? "Upload Locked" : "Upload & Analyze"}
               </>
             )}
           </Button>
@@ -427,7 +438,7 @@ function ResumeUploadContent() {
             >
               {eligible
                 ? "Congratulations! Your resume meets the requirements. You are eligible to proceed with the interview."
-                : "Your resume score is below the threshold (75%). Please update your resume and try again."}
+                : `Your resume score is below the threshold (${applications.find(a => a.interviews.id === interviewId)?.interviews?.min_resume_score ?? 70}%). Please update your resume and try again.`}
             </AlertDescription>
           </Alert>
 
@@ -454,9 +465,10 @@ function ResumeUploadContent() {
               <Button
                 size="lg"
                 onClick={handleTakeInterview}
+                disabled={appForContext?.interview_status === "Completed"}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8"
               >
-                Take Interview
+                {appForContext?.interview_status === "Completed" ? "Interview Completed" : "Take Interview"}
               </Button>
             )}
           </div>

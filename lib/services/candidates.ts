@@ -773,6 +773,7 @@ export async function getInterviewsForUSN(usn: string): Promise<any[]> {
         jd_file_url: app.interview.jd_file_url,
         interview_type: app.interview.interview_type,
         duration: app.interview.duration,
+        min_resume_score: app.interview.min_resume_score,
         status: app.interview.status,
         created_at: app.interview.created_at,
       },

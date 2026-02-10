@@ -19,32 +19,38 @@ export async function POST(req: Request) {
       throw new Error("Supabase admin client is not configured");
     }
 
-    const { data, error } = await adminSupabase
-      .from("interview_results")
-      .select(
-        `
-        id,
-        report,
-        created_at,
-        interviews (
+    const [resultsResponse, analysisResponse] = await Promise.all([
+      adminSupabase
+        .from("interview_results")
+        .select(
+          `
           id,
-          title,
-          interview_type
+          report,
+          created_at,
+          interviews (
+            id,
+            title,
+            interview_type
+          )
+        `
         )
-      `
-      )
-      .eq("candidate_id", candidateId)
-      .order("created_at", { ascending: false });
+        .eq("candidate_id", candidateId)
+        .order("created_at", { ascending: false }),
+      adminSupabase
+        .from("feedback_analysis")
+        .select("*")
+        .eq("candidate_id", candidateId)
+        .order("created_at", { ascending: false })
+    ]);
+    
+    if (resultsResponse.error) throw resultsResponse.error;
+    if (analysisResponse.error) throw analysisResponse.error;
 
-    if (error) {
-      console.error(error);
-      return Response.json(
-        { success: false, message: error.message },
-        { status: 500 }
-      );
-    }
-
-    return Response.json({ success: true, data }, { status: 200 });
+    return Response.json({ 
+      success: true, 
+      data: resultsResponse.data,
+      analysis: analysisResponse.data 
+    }, { status: 200 });
   } catch (error) {
     console.error("Server error:", error);
     return Response.json(

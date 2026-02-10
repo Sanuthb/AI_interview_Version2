@@ -9,6 +9,9 @@ export async function createInterview(data: {
   jd_file_url?: string;
   interview_type?: string;
   duration?: number;
+  min_resume_score?: number;
+  start_time?: string;
+  end_time?: string;
   status?: "Active" | "Closed";
 }) {
   const { data: interview, error } = await supabase
@@ -20,6 +23,9 @@ export async function createInterview(data: {
       jd_file_url: data.jd_file_url,
       interview_type: data.interview_type,
       duration: data.duration,
+      min_resume_score: data.min_resume_score ?? 70,
+      start_time: data.start_time,
+      end_time: data.end_time,
       status: data.status || 'Active',
     }])
     .select()
@@ -60,8 +66,11 @@ export async function getInterviews(): Promise<Interview[]> {
         jd_file_url: interview.jd_file_url,
         created_at: interview.created_at,
         status: interview.status,
+        start_time: interview.start_time,
+        end_time: interview.end_time,
         interview_type: interview.interview_type,
         duration: interview.duration,
+        min_resume_score: interview.min_resume_score,
         candidate_count: count || 0,
       };
     })
@@ -91,8 +100,11 @@ export async function getInterviewById(id: string): Promise<Interview | null> {
     jd_file_url: data.jd_file_url,
     created_at: data.created_at,
     status: data.status,
+    start_time: data.start_time,
+    end_time: data.end_time,
     interview_type: data.interview_type,
     duration: data.duration,
+    min_resume_score: data.min_resume_score,
   };
 }
 
@@ -105,6 +117,9 @@ export async function updateInterview(
     jd_file_url?: string;
     interview_type?: string;
     duration?: number;
+    min_resume_score?: number;
+    start_time?: string;
+    end_time?: string;
     status?: "Active" | "Closed";
   }
 ): Promise<void> {
@@ -126,48 +141,90 @@ export async function updateInterviewStatus(
   await updateInterview(id, { status });
 }
 
+export async function removeCandidateFromInterview(
+  candidateId: string,
+  interviewId: string
+): Promise<void> {
+  // Get current candidate interview_ids
+  const { data: candidate, error: fetchError } = await supabase
+    .from("candidates")
+    .select("interview_ids")
+    .eq("id", candidateId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const updatedIds = (candidate.interview_ids || []).filter(
+    (id: string) => id !== interviewId
+  );
+
+  const { error: updateError } = await supabase
+    .from("candidates")
+    .update({ interview_ids: updatedIds })
+    .eq("id", candidateId);
+
+  if (updateError) throw updateError;
+}
+
 export async function deleteInterview(id: string): Promise<void> {
-  // First, remove this interview ID from all candidates' interview_ids arrays
+  // 1. Remove this interview ID from all candidates' interview_ids arrays
   // Using PostgreSQL's array_remove function
-  const { error: candidatesError } = await supabase
-    .rpc('remove_interview_from_candidates', { interview_id_to_remove: id });
+  const { error: candidatesError } = await supabase.rpc(
+    "remove_interview_from_candidates",
+    { interview_id_to_remove: id }
+  );
 
   // If RPC doesn't exist, fall back to manual update
   if (candidatesError) {
-    console.log('RPC not available, using manual array update');
-    
-    // Get all candidates that have this interview in their array
+    console.log("RPC not available, using manual array update");
+
     const { data: candidates } = await supabase
-      .from('candidates')
-      .select('id, interview_ids')
-      .contains('interview_ids', [id]);
+      .from("candidates")
+      .select("id, interview_ids")
+      .contains("interview_ids", [id]);
 
     if (candidates && candidates.length > 0) {
-      // Update each candidate to remove the interview ID from their array
       for (const candidate of candidates) {
         const updatedIds = (candidate.interview_ids || []).filter(
           (iid: string) => iid !== id
         );
-        
+
         await supabase
-          .from('candidates')
-          .update({ 
+          .from("candidates")
+          .update({
             interview_ids: updatedIds,
           })
-          .eq('id', candidate.id);
+          .eq("id", candidate.id);
       }
     }
   }
 
-  // Now delete the interview itself
-  const { error } = await supabase
-    .from('interviews')
-    .delete()
-    .eq('id', id);
+  // 2. Cascading cleanup of associated data to avoid foreign key errors
+  // We perform these separately to minimize impact and allow the parent deletion to attempt success via DB cascade if configured
+  const cleanupTasks = [
+    { name: "interview_results", table: "interview_results" },
+    { name: "proctoring_events", table: "proctoring_events" },
+    { name: "recording_metadata", table: "recording_metadata" },
+    { name: "candidate_interviews", table: "candidate_interviews" },
+  ];
+
+  for (const task of cleanupTasks) {
+    const { error: cleanupError } = await supabase
+      .from(task.table)
+      .delete()
+      .eq("interview_id", id);
+      
+    if (cleanupError) {
+      console.warn(`Note: Manual cleanup of ${task.name} skipped or failed:`, cleanupError.message);
+    }
+  }
+
+  // 3. Now delete the interview itself
+  const { error } = await supabase.from("interviews").delete().eq("id", id);
 
   if (error) {
-    console.error('Error deleting interview:', error);
-    throw error;
+    console.error("Critical error deleting interview parent record:", error);
+    throw new Error(`Failed to delete interview: ${error.message}`);
   }
 }
 

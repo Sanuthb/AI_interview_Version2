@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +15,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Upload, FileText, Loader2, XCircle } from "lucide-react";
-import { createInterview } from "@/lib/services/interviews";
+import { CheckCircle2, Upload, FileText, Loader2, XCircle, ArrowLeft } from "lucide-react";
+import { getInterviewById, updateInterview } from "@/lib/services/interviews";
 import { uploadJobDescription } from "@/lib/services/storage";
 import { parseJobDescription } from "@/lib/services/jd-parser";
 import { toast } from "sonner";
+import Link from "next/link";
 
-export default function CreateInterviewPage() {
+export default function EditInterviewPage() {
   const router = useRouter();
+  const params = useParams();
+  const interviewId = params.interviewId as string;
+
   const [jdMethod, setJdMethod] = useState<"upload" | "paste">("paste");
   const [jdText, setJdText] = useState("");
   const [jdFile, setJdFile] = useState<File | null>(null);
@@ -31,8 +35,11 @@ export default function CreateInterviewPage() {
   const [minResumeScore, setMinResumeScore] = useState<number>(70);
   const [title, setTitle] = useState<string>("");
   const [jdName, setJdName] = useState<string>("");
+  const [status, setStatus] = useState<"Active" | "Closed">("Active");
   const [startTime, setStartTime] = useState<string>("");
   const [endTime, setEndTime] = useState<string>("");
+  
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isParsingJD, setIsParsingJD] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +48,33 @@ export default function CreateInterviewPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    fetchInterview();
+  }, [interviewId]);
+
+  const fetchInterview = async () => {
+    setIsLoading(true);
+    try {
+      const interview = await getInterviewById(interviewId);
+      if (interview) {
+        setTitle(interview.title);
+        setJdName(interview.jd_name);
+        setJdText(interview.jd_text || "");
+        setInterviewType(interview.interview_type || "");
+        setDuration(interview.duration?.toString() || "");
+        setMinResumeScore(interview.min_resume_score || 70);
+        setStatus(interview.status as "Active" | "Closed");
+        if (interview.start_time) setStartTime(new Date(interview.start_time).toISOString().slice(0, 16));
+        if (interview.end_time) setEndTime(new Date(interview.end_time).toISOString().slice(0, 16));
+      } else {
+        setError("Interview not found");
+      }
+    } catch (err) {
+      console.error("Error fetching interview:", err);
+      setError("Failed to load interview details");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleParseJD = async () => {
     if (jdMethod === "upload" && !jdFile) {
@@ -63,29 +96,15 @@ export default function CreateInterviewPage() {
         jdMethod === "paste" ? jdText : null,
       );
 
-      // Auto-fill form fields
-      if (parsed.title) {
-        setTitle(parsed.title);
-      }
-      if (parsed.jdName) {
-        setJdName(parsed.jdName);
-      }
-      if (parsed.interviewType) {
-        setInterviewType(parsed.interviewType);
-      }
-      if (parsed.duration) {
-        setDuration(parsed.duration);
-      }
+      if (parsed.title) setTitle(parsed.title);
+      if (parsed.jdName) setJdName(parsed.jdName);
+      if (parsed.interviewType) setInterviewType(parsed.interviewType);
+      if (parsed.duration) setDuration(parsed.duration);
 
-      toast.success(
-        "Job description analyzed! Form fields have been auto-filled.",
-      );
+      toast.success("Job description analyzed! Form fields updated.");
     } catch (err: any) {
       console.error("Error parsing JD:", err);
-      setError(
-        err.message ||
-          "Failed to parse job description. You can still fill the form manually.",
-      );
+      setError(err.message || "Failed to parse job description.");
       toast.error(err.message || "Failed to parse job description");
     } finally {
       setIsParsingJD(false);
@@ -98,30 +117,17 @@ export default function CreateInterviewPage() {
     setIsSubmitting(true);
 
     try {
-      // Validate required fields
-      if (!title.trim()) {
-        throw new Error("Interview title is required");
-      }
-      if (!jdName.trim()) {
-        throw new Error("Job description name is required");
-      }
-      if (jdMethod === "paste" && !jdText.trim()) {
-        throw new Error("Job description text is required");
-      }
-      if (jdMethod === "upload" && !jdFile) {
-        throw new Error("Job description file is required");
-      }
+      if (!title.trim()) throw new Error("Interview title is required");
+      if (!jdName.trim()) throw new Error("Job description name is required");
 
-      // Upload JD file if provided
       let jdFileUrl: string | undefined;
       if (jdFile) {
-        toast.info("Uploading job description file...");
-        // We'll upload after creating the interview
+        toast.info("Uploading new job description file...");
+        jdFileUrl = await uploadJobDescription(jdFile, interviewId);
       }
 
-      // Create interview
-      toast.info("Creating interview...");
-      const interview = await createInterview({
+      toast.info("Updating interview...");
+      await updateInterview(interviewId, {
         title: title.trim(),
         jd_name: jdName.trim(),
         jd_text: jdMethod === "paste" ? jdText.trim() : undefined,
@@ -131,74 +137,61 @@ export default function CreateInterviewPage() {
         min_resume_score: minResumeScore,
         start_time: startTime || undefined,
         end_time: endTime || undefined,
-        status: "Active",
+        status: status,
       });
 
-      // Upload JD file if provided (now we have interview ID)
-      if (jdFile && interview.id) {
-        try {
-          jdFileUrl = await uploadJobDescription(jdFile, interview.id);
-          // Update interview with file URL
-          const { updateInterview } = await import("@/lib/services/interviews");
-          await updateInterview(interview.id, { jd_file_url: jdFileUrl });
-        } catch (uploadError) {
-          console.error("Error uploading JD file:", uploadError);
-          // Continue even if file upload fails
-        }
-      }
-
-      toast.success("Interview created successfully!");
+      toast.success("Interview updated successfully!");
       setShowSuccess(true);
 
-      // Reset form and redirect
       setTimeout(() => {
-        setTitle("");
-        setJdName("");
-        setJdText("");
-        setJdFile(null);
-        setInterviewType("");
-        setDuration("");
-        setShowSuccess(false);
-        router.push(`/admin/interviews/${interview.id}`);
+        router.push("/admin/interviews");
       }, 2000);
     } catch (err: any) {
-      console.error("Error creating interview:", err);
-      setError(err.message || "Failed to create interview. Please try again.");
-      toast.error(err.message || "Failed to create interview");
+      console.error("Error updating interview:", err);
+      setError(err.message || "Failed to update interview.");
+      toast.error(err.message || "Failed to update interview");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading interview details...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Create Interview</h1>
-        <p className="text-muted-foreground">
-          Set up a new placement interview with job description
-        </p>
+      <div className="flex items-center gap-4">
+        <Link href="/admin/interviews">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold">Edit Interview</h1>
+          <p className="text-muted-foreground">Modify interview settings and job description</p>
+        </div>
       </div>
 
       {error && (
-        <Alert className="border-red-500 bg-red-50 dark:bg-red-950">
-          <XCircle className="h-4 w-4 text-red-600" />
-          <AlertTitle className="text-red-800 dark:text-red-200">
-            Error
-          </AlertTitle>
-          <AlertDescription className="text-red-700 dark:text-red-300">
-            {error}
-          </AlertDescription>
+        <Alert variant="destructive">
+          <XCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {showSuccess && (
         <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800 dark:text-green-200">
-            Interview Created Successfully!
-          </AlertTitle>
+          <AlertTitle className="text-green-800 dark:text-green-200">Success!</AlertTitle>
           <AlertDescription className="text-green-700 dark:text-green-300">
-             The interview has been created. Redirecting to dashboard to add candidates...
+            Interview updated successfully. Redirecting...
           </AlertDescription>
         </Alert>
       )}
@@ -209,25 +202,39 @@ export default function CreateInterviewPage() {
             <CardTitle>Interview Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Interview Title *</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Software Engineer - Google"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jd-name">Job Description Name *</Label>
-              <Input
-                id="jd-name"
-                placeholder="e.g., Google SWE JD 2024"
-                value={jdName}
-                onChange={(e) => setJdName(e.target.value)}
-                required
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="title">Interview Title *</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                {mounted && (
+                  <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jd-name">Job Description Name *</Label>
+                <Input
+                  id="jd-name"
+                  value={jdName}
+                  onChange={(e) => setJdName(e.target.value)}
+                  required
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -237,7 +244,7 @@ export default function CreateInterviewPage() {
             <CardTitle>Job Description</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
+             <div className="flex gap-2">
               <Button
                 type="button"
                 variant={jdMethod === "paste" ? "default" : "outline"}
@@ -269,35 +276,21 @@ export default function CreateInterviewPage() {
                     onClick={handleParseJD}
                     disabled={isParsingJD || !jdText.trim()}
                   >
-                    {isParsingJD ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-3 w-3" />
-                        Auto-fill with AI
-                      </>
-                    )}
+                    {isParsingJD ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <FileText className="h-3 w-3 mr-2" />}
+                    {isParsingJD ? "Analyzing..." : "Auto-fill with AI"}
                   </Button>
                 </div>
                 <Textarea
                   id="jd-text"
-                  placeholder="Paste the job description here..."
                   value={jdText}
                   onChange={(e) => setJdText(e.target.value)}
                   rows={10}
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  💡 Tip: Click "Auto-fill with AI" to automatically extract
-                  interview details
-                </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="jd-file">Upload Job Description</Label>
+                <Label htmlFor="jd-file">Update JD File (Optional)</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="jd-file"
@@ -306,7 +299,7 @@ export default function CreateInterviewPage() {
                     className="flex-1"
                     onChange={(e) => setJdFile(e.target.files?.[0] || null)}
                   />
-                  {(jdFile || jdText) && (
+                  {jdFile && (
                     <Button
                       type="button"
                       variant="outline"
@@ -314,31 +307,11 @@ export default function CreateInterviewPage() {
                       onClick={handleParseJD}
                       disabled={isParsingJD}
                     >
-                      {isParsingJD ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="mr-2 h-3 w-3" />
-                          Auto-fill
-                        </>
-                      )}
+                      {isParsingJD ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <FileText className="h-3 w-3 mr-2" />}
+                      Auto-fill
                     </Button>
                   )}
                 </div>
-                {jdFile && (
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">
-                      Selected: {jdFile.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      💡 Tip: Click "Auto-fill" to automatically extract
-                      interview details from the file
-                    </p>
-                  </div>
-                )}
               </div>
             )}
           </CardContent>
@@ -346,13 +319,13 @@ export default function CreateInterviewPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Interview Settings (Optional)</CardTitle>
+            <CardTitle>Interview Settings</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="interview-type">Interview Type</Label>
-                {mounted ? (
+                {mounted && (
                   <Select value={interviewType} onValueChange={setInterviewType}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
@@ -364,8 +337,6 @@ export default function CreateInterviewPage() {
                       <SelectItem value="Coding Round">Coding Round</SelectItem>
                     </SelectContent>
                   </Select>
-                ) : (
-                  <div className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-2" />
                 )}
               </div>
 
@@ -374,7 +345,6 @@ export default function CreateInterviewPage() {
                 <Input
                   id="duration"
                   type="number"
-                  placeholder="e.g., 30"
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
                 />
@@ -413,7 +383,7 @@ export default function CreateInterviewPage() {
                     className="w-24"
                   />
                   <span className="text-sm text-muted-foreground">
-                    Candidates scoring below this will be marked "Not Eligible".
+                    Required score for candidate eligibility.
                   </span>
                 </div>
               </div>
@@ -434,10 +404,10 @@ export default function CreateInterviewPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
+                Updating...
               </>
             ) : (
-              "Create Interview"
+              "Save Changes"
             )}
           </Button>
         </div>

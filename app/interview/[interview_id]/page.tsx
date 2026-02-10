@@ -96,7 +96,7 @@ export default function Page() {
         console.log("Interview data:", intData);
 
         if (candData) {
-          // Time Expiry Check
+          // 1. Time Expiry Check
           const createdAt = new Date(candData.created_at || Date.now());
           const deadline = candData.manual_interview_deadline
             ? new Date(candData.manual_interview_deadline)
@@ -108,14 +108,23 @@ export default function Page() {
             return;
           }
 
-          // Check for blocked/locked/malpractice status
-          if (
-            candData.interview_status === "Locked" ||
-            candData.malpractice === true
-          ) {
-            toast.error(
-              "You are blocked from taking this interview. Please contact the administrator.",
-            );
+          // 2. Specific Interview Status Check (Completed/Locked)
+          // Look for this specific interview in the candidate's applications
+          const { getInterviewsForUSN } = await import("@/lib/services/candidates");
+          if (candData.usn) {
+            const apps = await getInterviewsForUSN(candData.usn);
+            const currentApp = apps.find(a => a.interviews.id === normalizedInterviewId);
+            
+            if (currentApp && (currentApp.interview_status === "Completed" || currentApp.interview_status === "Locked")) {
+              toast.error("You have already completed or are blocked from this interview.");
+              router.push("/candidate/dashboard");
+              return;
+            }
+          }
+
+          // 3. Global Malpractice/Blocked Check
+          if (candData.malpractice === true) {
+            toast.error("Account blocked due to malpractice. Please contact administrator.");
             router.push("/candidate/dashboard");
             return;
           }
@@ -125,17 +134,14 @@ export default function Page() {
             setResumeText(candData.resume_text);
           }
         }
-        // section:  set data inside setInterview
+
         if (intData) setInterview(intData);
 
-        //section: Update InterviewContext with dynamic data
         if (candData && (intData || interviewdata)) {
-          console.log("intData=", intData);
-
           interviewContext?.setinterviewdata({
             Username: candData.name,
             jobposition: intData?.title || interviewdata.jobposition,
-            questionlist: [], // Force empty as requested
+            questionlist: [],
           });
         }
       } catch (err) {
@@ -227,39 +233,76 @@ export default function Page() {
         messages: [
           {
             role: "system",
-            content: `
-                          You are an AI voice assistant conducting interviews.
-                          Your job is to ask candidates relevant interview questions based on their resume and the job description provided.
+            content: `You are a STRICT AI interviewer conducting a formal job interview.
 
-                          **Context:**
-                          - Job Description: ${interview?.jd_text ||
-              interview?.jd_name ||
-              interviewdata?.jobposition
-              }
-                          - Candidate Name: ${candidate?.name || interviewdata?.Username
-              }
-                          - Candidate Resume Info: ${resumeContext}
-                          - Interview Duration: ${interview?.duration || 15
-              } minutes
+This is a CONTROLLED interview environment. You are in full control of:
+- The interview flow
+- The interview phases
+- The timing
+- When the interview starts and ends
 
-                          **Instructions:**
-                          1. Begin with a friendly, professional introduction.
-                          2. Analyze the Job Description and the Candidate's Resume (if available).
-                          3. Generate strictly relevant interview questions.
-                          4. Ask one question at a time and wait for the candidate's response.
-                          5. Manage the interview time efficiently. You have exactly ${interview?.duration || 15
-              } minutes.
-                             - Pace your questions to cover key areas within this timeframe.
-                             - If time is running out, wrap up with a final question or a polite closing.
-                             - Do not exceed the allocated duration significantly.
-                          6. Provide encouraging feedback and ask follow-up questions if needed.
-                          7. If the candidate struggles, offer helpful hints.
-                          8. IMPORTANT: When you decide the interview is over (or time is up), explicitly say: "Thank you for your time. Please click the red 'End Interview' button to finish."
-                          
-                          Key Guidelines:
-                          - Be friendly, engaging, and witty
-                          - Keep responses short and natural
-                          - Ensure the interview remains focused on high-quality technical or behavioral assessment suited for the role.
+The candidate CANNOT:
+- Change the topic
+- Skip questions
+- Ask you unrelated questions
+- Ask you to end the interview
+- Ask personal, casual, or non-interview-related questions
+
+If the candidate asks anything NOT directly related to the current interview question or job role:
+- Politely but firmly refuse
+- Redirect them back to the interview question
+- Do NOT engage in side conversations
+
+Example response:
+"Let's stay focused on the interview. Please answer the question."
+
+---
+
+### INTERVIEW CONTEXT
+- Job Description: ${interview?.jd_text || interview?.jd_name || interviewdata?.jobposition}
+- Candidate Name: ${candidate?.name || interviewdata?.Username}
+- Candidate Resume Summary: ${resumeContext}
+- Total Interview Duration: ${interview?.duration || 15} minutes
+
+---
+
+### INTERVIEW RULES (MANDATORY)
+1. Begin with a brief, professional introduction (no small talk).
+2. Ask ONE question at a time.
+3. Wait for the candidate’s response before continuing.
+4. Keep each question directly relevant to the job description or resume.
+5. Do NOT allow the candidate to control the interview flow.
+6. Do NOT reveal scoring, evaluation logic, or internal reasoning.
+7. If the candidate gives vague or incomplete answers:
+   - Ask a follow-up
+   - Push for clarity and depth
+8. If the candidate is silent or avoids answering:
+   - Prompt once
+   - Then move forward
+
+---
+
+### BEHAVIORAL STYLE
+- Professional
+- Firm
+- Neutral
+- Slightly strict (like a real interviewer)
+- No humor, no jokes, no casual chatting
+
+---
+
+### TIME MANAGEMENT (CRITICAL)
+- You have EXACTLY ${interview?.duration || 15} minutes.
+- Pace questions carefully.
+- When 2 minutes remain:
+  - Ask a final question.
+- When time is up:
+  - End immediately.
+
+When the interview ends, you MUST say EXACTLY:
+"Thank you for your time. Please click the red 'End Interview' button to finish."
+
+Do NOT say anything after that.
                         `.trim(),
           },
         ],
@@ -521,9 +564,9 @@ export default function Page() {
     }
   };
 
-  const handleStartInterview = async () => {
+  const handleStartInterview = async (isConsented: boolean = false) => {
     // 1. Check Consent
-    if (!consentGiven) {
+    if (!consentGiven && !isConsented) {
       setShowConsentModal(true);
       return;
     }
@@ -592,7 +635,11 @@ export default function Page() {
         onConsent={() => {
           setConsentGiven(true);
           setShowConsentModal(false);
-          toast.success("Consent recorded. Proceeding...");
+          toast.success("Consent recorded. Starting interview...");
+          // Automatically start the interview after consent
+          setTimeout(() => {
+            handleStartInterview(true);
+          }, 500);
         }}
       />
 
@@ -675,7 +722,7 @@ export default function Page() {
 
         {!interviewStarted ? (
           <button
-            onClick={handleStartInterview}
+            onClick={() => handleStartInterview()}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
           >
             Start Interview

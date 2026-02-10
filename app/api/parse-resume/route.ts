@@ -1,6 +1,6 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { AIService } from '@/lib/services/ai-service';
+import { DocumentParser } from "@/lib/services/document-parser";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,18 +14,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use LangChain PDF loader when the file is a PDF
+    // Use centralized DocumentParser to extract text
     let resumeText = "";
-
-    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-      // Create a Blob from the file
-      const blob = new Blob([await file.arrayBuffer()], { type: "application/pdf" });
-      const { parseResume } = await import("@/lib/services/resume-parser");
-      resumeText = await parseResume(blob);
-    } else {
-      // Fallback: read as text for DOC/DOCX or other text-like formats
-      const arrayBuffer = await file.arrayBuffer();
-      resumeText = Buffer.from(arrayBuffer).toString("utf-8");
+    try {
+      resumeText = await DocumentParser.extractText(file);
+    } catch (parseError: any) {
+      console.error("Error extracting text from resume:", parseError);
+      return NextResponse.json(
+        { error: "Could not extract text from resume. Please upload a clear PDF or text-based file." },
+        { status: 400 }
+      );
     }
 
     if (!resumeText.trim()) {
@@ -36,28 +34,44 @@ export async function POST(request: NextRequest) {
     }
 
     const jdText = formData.get("jd_text") as string | null;
+    const candidateName = formData.get("candidate_name") as string | null;
 
-    const prompt = `You are evaluating a candidate's resume for a specific job description.
+    const prompt = `You are evaluating a candidate's resume for a specific job description and verifying their identity.
+
+    **Logged-in Candidate Name:**
+    ${candidateName || "Not provided"}
 
     **Job Description:**
     ${jdText || "No specific job description provided. Evaluate based on general software engineering standards."}
 
-    **Candidate Resume:**
+    **Candidate Resume Content:**
     ${resumeText.substring(0, 10000)}
 
     **Task:**
-    Analyze the resume specifically against the provided Job Description. 
-    - strict matching of skills and experience to the JD.
-    - If the JD mentions specific technologies, prioritize them heavily.
-    
-    Return a JSON object with scores (0-100).
-    
+    1. **Identity Check**: Extract the name from the resume. Compare it strictly with the "Logged-in Candidate Name" (${candidateName}). 
+       - If the names are significantly different, mark "isCandidateMatch" as false.
+       - Allow for minor variations (e.g., "John Doe" vs "John D").
+       - If no name is found in the resume, mark "isCandidateMatch" as false.
+    2. **Resume Validation**: Verify if the content is actually a professional resume/CV.
+    3. **JD Match**: Analyze the resume specifically against the provided Job Description.
+
+    **Evaluation Guidelines:**
+    - **Context Awareness**: If the resume suggests the candidate is a student (e.g., mention of MCA, BCA, Internships), evaluate them as an entry-level candidate.
+    - **Scoring Nuance**: Do not penalize students heavily for "limited professional experience" if their technical skills and project relevance are strong. 
+    - **Balanced Weighting**: For students, weigh "Skills Match" and "Project Relevance" more heavily than "Experience Suitability".
+    - **Encouragement**: Strengths and weaknesses should be constructive. A score of 7 should represent a "Good" candidate for entry-level roles.
+    - **JSON Structure**: Ensure scores are integers from 0 to 10. (The frontend will scale these).
+
     Return JSON in the following structure:
     {
-      "skillsMatchScore": 0,
-      "projectRelevanceScore": 0,
-      "experienceSuitabilityScore": 0,
-      "overallScore": 0,
+      "isCandidateMatch": boolean,
+      "isResume": boolean,
+      "validationReason": "String explaining mismatch or invalid resume",
+      "extractedName": "String",
+      "skillsMatchScore": 0, // 0-10
+      "projectRelevanceScore": 0, // 0-10
+      "experienceSuitabilityScore": 0, // 0-10
+      "overallScore": 0, // 0-10
       "overallRating": "Poor | Average | Good | Great",
       "strengths": ["bullet", "bullet"],
       "weaknesses": ["bullet", "bullet"]
@@ -76,13 +90,28 @@ export async function POST(request: NextRequest) {
 
     const parsed = response.data;
 
+    // Validation checks
+    if (!parsed.isResume) {
+      return NextResponse.json(
+        { error: parsed.validationReason || "The uploaded file does not appear to be a valid resume." },
+        { status: 400 }
+      );
+    }
+
+    if (!parsed.isCandidateMatch) {
+      return NextResponse.json(
+        { error: parsed.validationReason || `Identity mismatch: This resume appears to belong to someone else (${parsed.extractedName}).` },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       data: {
-        skillsMatchScore: parsed.skillsMatchScore ?? 0,
-        projectRelevanceScore: parsed.projectRelevanceScore ?? 0,
-        experienceSuitabilityScore: parsed.experienceSuitabilityScore ?? 0,
-        overallScore: parsed.overallScore ?? 0,
+        skillsMatchScore: (parsed.skillsMatchScore ?? 0) * 10,
+        projectRelevanceScore: (parsed.projectRelevanceScore ?? 0) * 10,
+        experienceSuitabilityScore: (parsed.experienceSuitabilityScore ?? 0) * 10,
+        overallScore: (parsed.overallScore ?? 0) * 10,
         overallRating: parsed.overallRating ?? "Average",
         strengths: parsed.strengths ?? [],
         weaknesses: parsed.weaknesses ?? [],

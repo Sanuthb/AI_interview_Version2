@@ -3,10 +3,10 @@ import { searchRegisteredUsers, addCandidateToInterview } from "@/lib/services/c
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ interview_id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { interview_id: id } = await params;
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("query") || "";
     
@@ -27,10 +27,10 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ interview_id: string }> }
 ) {
   try {
-    const { id: interviewId } = await params;
+    const { interview_id: interviewId } = await params;
     const { usn } = await req.json();
 
     if (!usn) {

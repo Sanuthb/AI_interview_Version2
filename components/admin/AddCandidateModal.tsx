@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,7 @@ interface AddCandidateModalProps {
 }
 
 export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
@@ -39,6 +40,10 @@ export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
   const [uploadStats, setUploadStats] = useState<{ created: number; skipped: number } | null>(null);
 
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,8 +133,6 @@ export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
         throw new Error("No candidates found in file");
       }
 
-      // Map to expected format (ensure keys match what backend expects)
-      // Backend expects: name, usn, email, batch, dept, interview_id
       const formattedCandidates = candidates.map(c => ({
         name: c.name || c.student_name || "Unknown",
         usn: c.usn || c.student_id,
@@ -137,27 +140,11 @@ export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
         batch: c.batch ? String(c.batch) : undefined,
         dept: c.dept || c.department,
         interview_id: interviewId
-      })).filter(c => c.usn); // Filter out rows without USN
+      })).filter(c => c.usn);
 
       if (formattedCandidates.length === 0) {
         throw new Error("No valid candidates with USN found");
       }
-
-      // We need a bulk API endpoint. 
-      // Existing: POST /api/admin/interviews/[id]/candidates takes { usn } (single)
-      // We should probably add a logic to handle array or loop?
-      // Or use the 'create-accounts' bulk style? 
-      // Actually, candidates service has `createCandidatesBulk`.
-      // Let's call a new API endpoint or re-use existing one if it supports bulk?
-      // The current existing API `app/api/admin/interviews/[interview_id]/candidates/route.ts` 
-      // likely handles single add. We should update it or assume we loop.
-      // Looping 100s of requests is bad.
-      // Let's assume we can send a bulk list to the SAME endpoint checking if it is an array?
-      // Or better, let's just make a new server action or route?
-      // For now, to suffice the requirement without creating new routes if possible, 
-      // I will implement a client-side loop with concurrency control, OR 
-      // check if I can modify the API route to accept an array.
-      // Modifying the API route is cleaner.
 
       const res = await fetch(`/api/admin/interviews/${interviewId}/candidates/bulk`, {
         method: "POST",
@@ -178,7 +165,7 @@ export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
       
       toast.success(`Processed ${formattedCandidates.length} candidates`);
       router.refresh();
-      setFile(null); // Clear file after success
+      setFile(null);
     } catch (error: any) {
       console.error("Upload failed:", error);
       toast.error(error.message || "Failed to upload candidates");
@@ -186,6 +173,15 @@ export function AddCandidateModal({ interviewId }: AddCandidateModalProps) {
       setIsUploading(false);
     }
   };
+
+  if (!mounted) {
+    return (
+      <Button disabled>
+        <UserPlus className="mr-2 h-4 w-4" />
+        Add Candidate
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

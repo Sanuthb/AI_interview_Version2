@@ -8,24 +8,30 @@ export class AIService {
   private static geminiProvider = new GeminiProvider();
 
   static async generateContent(prompt: string, options?: GenerateContentOptions): Promise<AIServiceResponse<string>> {
-    // Try Groq first
+    // Try Groq as the primary provider (per user preference)
     try {
-      console.log('Attempting to generate content with Groq...');
+      console.log('Generating content with Groq...');
       const data = await this.groqProvider.generateContent(prompt, options);
       return { success: true, data, providerUsed: 'groq' };
-    } catch (error) {
-      console.warn('Groq failed, falling back to Gemini:', error);
-      // Fallback to Gemini
+    } catch (error: any) {
+      console.warn('Groq failed:', error.message);
+      
+      // If user explicitly doesn't want Gemini or it's not configured, don't fallback
+      if (process.env.STOP_GEMINI_FALLBACK === 'true' || !process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+        return { success: false, data: '', error: `Groq failed: ${error.message}`, providerUsed: 'groq' };
+      }
+
+      // Fallback to Gemini only as a last resort
       try {
-        console.log('Attempting to generate content with Gemini...');
+        console.log('Falling back to Gemini...');
         const data = await this.geminiProvider.generateContent(prompt, options);
         return { success: true, data, providerUsed: 'gemini' };
       } catch (geminiError: any) {
-        console.error('Gemini also failed:', geminiError);
+        console.error('Gemini fallback also failed:', geminiError.message);
         return { 
             success: false, 
             data: '', 
-            error: geminiError.message || 'Both AI providers failed',
+            error: `Both providers failed. Groq: ${error.message}. Gemini: ${geminiError.message}`,
             providerUsed: 'gemini' 
         };
       }
@@ -33,28 +39,30 @@ export class AIService {
   }
 
   static async generateJson<T>(prompt: string, schema?: any, options?: GenerateContentOptions): Promise<AIServiceResponse<T>> {
-      // Try Groq first
       try {
-        console.log('Attempting to generate JSON with Groq...');
+        console.log('Generating JSON with Groq...');
         const data = await this.groqProvider.generateJson<T>(prompt, schema, options);
         return { success: true, data, providerUsed: 'groq' };
-      } catch (error) {
-        console.warn('Groq JSON failed, falling back to Gemini:', error);
-        // Fallback to Gemini
+      } catch (error: any) {
+        console.warn('Groq JSON failed:', error.message);
+
+        // Don't fallback if Gemini is likely to fail (403 from logs indicates it's broken)
+        if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+           return { success: false, data: {} as T, error: `Groq failed: ${error.message}`, providerUsed: 'groq' };
+        }
+
         try {
-          console.log('Attempting to generate JSON with Gemini...');
+          console.log('Falling back to Gemini JSON...');
           const data = await this.geminiProvider.generateJson<T>(prompt, schema, options);
           return { success: true, data, providerUsed: 'gemini' };
         } catch (geminiError: any) {
-          console.error('Gemini JSON also failed:', geminiError);
-           // We can't type check error return easily here without casting, so we return a rejected promise or null
-           // But for robustness, let's return a failure object casted to any
-           return {
-               success: false,
-               data: {} as T, // Return empty object or null as appropriate
-               error: geminiError.message || 'Both AI providers failed',
-               providerUsed: 'gemini'
-           };
+          console.error('Gemini JSON fallback failed:', geminiError.message);
+          return {
+              success: false,
+              data: {} as T,
+              error: `Both providers failed. Groq: ${error.message}. Gemini: ${geminiError.message}`,
+              providerUsed: 'gemini'
+          };
         }
       }
   }

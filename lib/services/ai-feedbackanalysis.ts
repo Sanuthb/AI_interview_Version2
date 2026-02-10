@@ -38,14 +38,20 @@ export async function generatefeedbackanalysis(
             "education": "String",
             "target_role": "String"
         },
+        "performance_metrics": [
+            { "metric": "Technical Proficiency", "score": 0-100, "description": "Assessment of core technical skills and knowledge" },
+            { "metric": "Behavioral Alignment", "score": 0-100, "description": "Fit with company values and situational responses" },
+            { "metric": "Communication Clarity", "score": 0-100, "description": "Effectiveness of verbal delivery and answer structure" },
+            { "metric": "Problem Solving", "score": 0-100, "description": "Ability to handle complex questions and logic" },
+            { "metric": "Cultural Alignment", "score": 0-100, "description": "Potential impact on team dynamics" }
+        ],
         "feedback_analysis": {
             "summary": "String",
-            "technical_rating": "String (Low/Med/High)",
-            "behavioral_rating": "String (Low/Med/High)",
+            "overall_rating": "String (e.g. Excellent, Good, Average, Poor)",
             "key_observations": ["Array of strings"]
         },
         "overall_assessment": {
-            "hiring_status": "String (e.g., Strong Hire, Reject)",
+            "hiring_status": "String (e.g., Strong Hire, Hire, Weak Hire, No Hire)",
             "match_score": "Number (0-100)",
             "verdict_summary": "String"
         },

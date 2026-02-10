@@ -39,7 +39,7 @@ export async function generateReportAction(candidateId: string, interviewId: str
     const { logAdminAction } = await import('@/lib/services/admin-service');
     await logAdminAction(candidateId, 'AI_REPORT', JSON.stringify(report));
 
-    revalidatePath(`/admin/dashboard/${interviewId}`);
+    revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true, data: report };
   } catch (error) {
     console.error('Failed to generate report:', error);
@@ -51,7 +51,7 @@ export async function generateReportAction(candidateId: string, interviewId: str
 export async function promoteCandidateAction(candidateId: string, interviewId: string) {
   try {
     await promoteCandidate(candidateId);
-    revalidatePath(`/admin/dashboard/${interviewId}`);
+    revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {
     console.error('Failed to promote candidate:', error);
@@ -62,7 +62,7 @@ export async function promoteCandidateAction(candidateId: string, interviewId: s
 export async function lockCandidateAction(candidateId: string, interviewId: string) {
   try {
     await lockCandidate(candidateId);
-    revalidatePath(`/admin/dashboard/${interviewId}`);
+    revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {
     console.error('Failed to lock candidate:', error);
@@ -73,10 +73,29 @@ export async function lockCandidateAction(candidateId: string, interviewId: stri
 export async function reEnableCandidateAction(candidateId: string, interviewId: string, hours: number) {
   try {
     await reEnableCandidate(candidateId, hours);
-    revalidatePath(`/admin/dashboard/${interviewId}`);
+    revalidatePath(`/admin/interviews/${interviewId}`);
     return { success: true };
   } catch (error) {
     console.error('Failed to re-enable candidate:', error);
     return { success: false, error: 'Failed to re-enable candidate' };
+  }
+}
+export async function removeCandidateFromInterviewAction(
+  candidateId: string,
+  interviewId: string
+) {
+  try {
+    const { removeCandidateFromInterview } = await import(
+      "@/lib/services/interviews"
+    );
+    await removeCandidateFromInterview(candidateId, interviewId);
+    revalidatePath(`/admin/interviews/${interviewId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to remove candidate from interview:", error);
+    return {
+      success: false,
+      error: "Failed to remove candidate from interview",
+    };
   }
 }

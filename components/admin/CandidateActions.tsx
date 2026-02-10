@@ -44,7 +44,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,26 +61,37 @@ import {
   Ban,
   Clock,
   Lock,
+  Search,
 } from "lucide-react";
 import { Candidate } from "@/lib/types";
 import { ResumeViewer } from "./ResumeViewer";
+import { IntelligenceReportDialog } from "./IntelligenceReportDialog";
 import {
   promoteCandidateAction,
   lockCandidateAction,
   reEnableCandidateAction,
   generateReportAction,
+  removeCandidateFromInterviewAction,
 } from "@/app/admin/actions";
 import { toast } from "sonner";
-import { FileBadge } from "lucide-react";
+import { FileBadge, UserMinus } from "lucide-react";
 
 interface CandidateActionsProps {
   candidate: Candidate;
+  interviewId: string;
 }
 
-export function CandidateActions({ candidate }: CandidateActionsProps) {
-  console.log("candidate=", candidate);
+export function CandidateActions({
+  candidate,
+  interviewId,
+}: CandidateActionsProps) {
+  const [mounted, setMounted] = useState(false);
   const [showResume, setShowResume] = useState(false);
-  const interviewId = candidate.interview_ids?.[0] || "";
+  const [showAnalysis, setShowAnalysis] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handlePromote = async () => {
     const result = await promoteCandidateAction(candidate.id, interviewId);
@@ -100,6 +111,29 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
     else toast.error("Failed to lock");
   };
 
+  const handleRemove = async () => {
+    if (
+      confirm(
+        `Are you sure you want to remove ${candidate.name} from this interview? This will not delete the candidate from the system.`
+      )
+    ) {
+      const result = await removeCandidateFromInterviewAction(
+        candidate.id,
+        interviewId
+      );
+      if (result.success) toast.success("Candidate removed from interview");
+      else toast.error("Failed to remove candidate");
+    }
+  };
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" className="h-8 w-8 p-0" disabled>
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+    );
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -114,6 +148,10 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
           <DropdownMenuItem onClick={() => setShowResume(true)}>
             <FileText className="mr-2 h-4 w-4" />
             View Resume
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowAnalysis(true)}>
+            <Search className="mr-2 h-4 w-4 text-blue-500" />
+            View Intelligence Analysis
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handlePromote}>
@@ -137,6 +175,11 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
             Generate AI Report
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-destructive" onClick={handleRemove}>
+            <UserMinus className="mr-2 h-4 w-4" />
+            Remove from Interview
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem className="text-destructive" onClick={handleLock}>
             <Ban className="mr-2 h-4 w-4" />
             Block / Lock
@@ -149,6 +192,15 @@ export function CandidateActions({ candidate }: CandidateActionsProps) {
           candidate={candidate}
           open={showResume}
           onOpenChange={setShowResume}
+        />
+      )}
+
+      {showAnalysis && (
+        <IntelligenceReportDialog
+          candidateId={candidate.id}
+          candidateName={candidate.name}
+          open={showAnalysis}
+          onOpenChange={setShowAnalysis}
         />
       )}
     </>
