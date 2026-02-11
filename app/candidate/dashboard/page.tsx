@@ -169,15 +169,15 @@ function CandidateDashboardContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">My Interviews</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold text-blue-600">My Interviews</h1>
+        <p className="text-muted-foreground mt-1">
           Welcome, {user?.name || user?.email} ({user?.usn || "N/A"})
         </p>
       </div>
 
       {error && (
-        <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+        <Alert className="border-yellow-500 bg-yellow-50">
+          <AlertDescription className="text-yellow-700">
             {error}
           </AlertDescription>
         </Alert>
@@ -190,12 +190,12 @@ function CandidateDashboardContent() {
             const canTake = canTakeInterview(assignment);
 
             return (
-              <Card key={`${assignment.id}-${assignment.interviews.id}`} className="flex flex-col">
-                <CardHeader>
+              <Card key={`${assignment.id}-${assignment.interviews.id}`} className="flex flex-col border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all duration-200">
+                <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle 
-                        className="text-lg line-clamp-2 hover:text-primary cursor-pointer transition-colors"
+                        className="text-lg line-clamp-2 hover:text-blue-600 cursor-pointer transition-colors"
                         onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
                       >
                         {assignment.interviews.title}
@@ -204,10 +204,10 @@ function CandidateDashboardContent() {
                         {assignment.interviews.jd_name}
                       </p>
                     </div>
-                    <Briefcase className="h-5 w-5 text-muted-foreground flex-shrink-0 ml-2" />
+                    <Briefcase className="h-5 w-5 text-blue-600 flex-shrink-0 ml-2" />
                   </div>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col justify-between">
+                <CardContent className="flex-1 flex flex-col justify-between pt-0">
                   <div className="space-y-3 mb-4">
                     {assignment.interviews.interview_type && (
                       <div className="flex items-center justify-between text-sm">
@@ -228,7 +228,7 @@ function CandidateDashboardContent() {
                     {assignment.resume_score !== null && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Resume Score:</span>
-                        <span className="font-medium">
+                        <span className="font-semibold text-blue-600">
                           {assignment.resume_score}%
                         </span>
                       </div>
@@ -243,6 +243,7 @@ function CandidateDashboardContent() {
                             ? "destructive"
                             : "secondary"
                         }
+                        className="font-medium"
                       >
                         {status}
                       </Badge>
@@ -252,11 +253,11 @@ function CandidateDashboardContent() {
                   <div className="flex gap-2 flex-col">
                     {assignment.interview_status === "Completed" ? (
                       <>
-                        <div className="text-center py-2 text-sm font-semibold text-green-600 bg-green-50 rounded-md border border-green-200">
-                          Interview Completed
+                        <div className="text-center py-3 text-sm font-semibold text-green-700 bg-green-50 rounded-lg border-2 border-green-200">
+                          ✓ Interview Completed
                         </div>
                         <Button
-                          className="w-full bg-blue-600 hover:bg-blue-700"
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
                           onClick={() => router.push(`/candidate/feedbackanalysis`)}
                         >
                           <FileText className="mr-2 h-4 w-4" />
@@ -266,7 +267,7 @@ function CandidateDashboardContent() {
                     ) : (
                       <>
                         <Button
-                          className="w-full bg-green-600 hover:bg-green-700"
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-medium disabled:opacity-50 disabled:bg-gray-400"
                           disabled={!canTake}
                           onClick={() => router.push(`/interview/${assignment.interviews.id}`)}
                         >
@@ -278,7 +279,7 @@ function CandidateDashboardContent() {
                            status === "Closed" ? "Closed" : "Start Interview"}
                         </Button>
                         <Button 
-                          className="w-full"
+                          className="w-full border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50"
                           variant="outline"
                           onClick={() => router.push(`/candidate/interview-details/${assignment.interviews.id}`)}
                         >

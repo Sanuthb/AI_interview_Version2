@@ -155,7 +155,7 @@ function ScoreRing({
           className="transform -rotate-90"
         >
           <circle
-            stroke="rgba(255,255,255,0.1)"
+            stroke="rgba(0,0,0,0.1)"
             fill="transparent"
             strokeWidth={stroke}
             r={normalizedRadius}
@@ -177,12 +177,12 @@ function ScoreRing({
         </svg>
         <span
           className={`absolute ${size === "lg" ? "text-2xl" : "text-lg"
-            } font-bold text-white`}
+            } font-bold text-gray-900`}
         >
           {value}
         </span>
       </div>
-      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center max-w-[80px]">
+      <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest text-center max-w-[80px]">
         {label}
       </span>
     </div>
@@ -241,14 +241,14 @@ function Page() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="relative overflow-hidden p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl">
-          <div className="absolute top-0 right-0 p-8 opacity-10 blur-2xl bg-primary w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <h1 className="text-4xl font-black text-white mb-2 tracking-tight">
+        <div className="relative overflow-hidden p-8 rounded-3xl bg-white border border-gray-200 shadow-lg">
+          <div className="absolute top-0 right-0 p-8 opacity-5 blur-2xl bg-blue-400 w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <h1 className="text-4xl font-black text-blue-600 mb-2 tracking-tight">
             Interview Intelligence Dashboard
           </h1>
-          <p className="text-slate-400 max-w-2xl">
+          <p className="text-gray-600 max-w-2xl">
             Analyze your interview performance through AI-driven insights, communication coaching, and strategic career recommendations.
           </p>
         </div>
@@ -258,17 +258,17 @@ function Page() {
             <Dialog key={index}>
               <DialogTrigger asChild>
                 <Card
-                  className="group relative cursor-pointer overflow-hidden transition-all duration-500 hover:scale-[1.02] bg-slate-900 border-slate-800 hover:border-slate-700 shadow-xl"
+                  className="group relative cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] bg-white border-2 border-gray-200 hover:border-blue-400 shadow-md hover:shadow-lg"
                   onClick={() => handleOpenReport(item)}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <CardHeader>
                     <div className="flex items-start justify-between mb-2">
                       <div className="space-y-1">
-                        <CardTitle className="text-xl font-bold text-white group-hover:text-primary transition-colors">
+                        <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                           {item.interviews.title}
                         </CardTitle>
-                        <CardDescription className="text-slate-500">
+                        <CardDescription className="text-gray-500">
                           {item.interviews.interview_type} • {new Date(item.created_at).toLocaleDateString()}
                         </CardDescription>
                       </div>
@@ -278,25 +278,25 @@ function Page() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex justify-between items-center py-4 border-t border-slate-800">
+                    <div className="flex justify-between items-center py-4 border-t border-gray-200">
                       <ScoreRing value={item.report.finalScore} label="Overall" size="sm" />
-                      <div className="h-8 w-px bg-slate-800" />
+                      <div className="h-8 w-px bg-gray-300" />
                       <ScoreRing value={item.report.skillsScore} label="Technical" size="sm" />
-                      <div className="h-8 w-px bg-slate-800" />
+                      <div className="h-8 w-px bg-gray-300" />
                       <ScoreRing value={item.report.communicationScore} label="Communication" size="sm" />
                     </div>
                   </CardContent>
                 </Card>
               </DialogTrigger>
 
-              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-slate-950 border-slate-800 text-slate-100 p-0 shadow-2xl">
-                <DialogHeader className="p-8 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
+              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white border-gray-200 text-gray-900 p-0 shadow-xl">
+                <DialogHeader className="p-8 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <DialogTitle className="text-3xl font-black tracking-tight mb-1">
                         {selectedReport?.interviews.title}
                       </DialogTitle>
-                      <p className="text-slate-400 font-medium">
+                      <p className="text-gray-600 font-medium">
                         Detailed Hiring Analysis & Career Coaching Report
                       </p>
                     </div>
@@ -310,14 +310,14 @@ function Page() {
 
                 <div className="p-8">
                   <Tabs defaultValue="scorecard" className="space-y-8">
-                    <TabsList className="bg-slate-900 border border-slate-800 p-1">
-                      <TabsTrigger value="scorecard" className="data-[state=active]:bg-primary data-[state=active]:text-white transition-all">
+                    <TabsList className="bg-gray-100 border border-gray-200 p-1">
+                      <TabsTrigger value="scorecard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
                         <TrendingUp className="w-4 h-4 mr-2" /> Scorecard
                       </TabsTrigger>
-                      <TabsTrigger value="coaching" className="data-[state=active]:bg-primary data-[state=active]:text-white transition-all">
+                      <TabsTrigger value="coaching" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
                         <Brain className="w-4 h-4 mr-2" /> AI Coaching
                       </TabsTrigger>
-                      <TabsTrigger value="strategy" className="data-[state=active]:bg-primary data-[state=active]:text-white transition-all">
+                      <TabsTrigger value="strategy" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all">
                         <Target className="w-4 h-4 mr-2" /> Strategy
                       </TabsTrigger>
                     </TabsList>
@@ -337,7 +337,7 @@ function Page() {
                           </h3>
                           <div className="grid gap-3">
                             {(selectedReport?.report?.strengths || []).map((s, i) => (
-                              <div key={i} className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-slate-300">
+                              <div key={i} className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-gray-700">
                                 {s}
                               </div>
                             ))}
@@ -350,7 +350,7 @@ function Page() {
                           </h3>
                           <div className="grid gap-3">
                             {(selectedReport?.report?.weaknesses || []).map((w, i) => (
-                              <div key={i} className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 text-slate-300">
+                              <div key={i} className="p-4 rounded-xl bg-red-50 border border-red-200 text-gray-700">
                                 {w}
                               </div>
                             ))}
@@ -363,65 +363,65 @@ function Page() {
                       {(deepAnalysis?.analysis?.communication_coaching || selectedReport?.report?.communication_coaching) ? (
                         <>
                           <div className="grid md:grid-cols-2 gap-8">
-                            <Card className="bg-slate-900/50 border-slate-800">
+                            <Card className="bg-gray-50 border-gray-200">
                               <CardHeader>
-                                <CardTitle className="flex items-center text-primary">
+                                <CardTitle className="flex items-center text-blue-600">
                                   <MessageSquare className="w-5 h-5 mr-3" /> Verbal Delivery Coaching
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="space-y-4">
                                 {(deepAnalysis?.analysis?.communication_coaching?.verbal_delivery || selectedReport?.report?.communication_coaching?.verbal_delivery || []).map((tip, i) => (
-                                  <li key={i} className="text-slate-300 list-none flex items-start">
-                                    <span className="text-primary mr-2">•</span> {tip}
+                                  <li key={i} className="text-gray-700 list-none flex items-start">
+                                    <span className="text-blue-600 mr-2">•</span> {tip}
                                   </li>
                                 ))}
                               </CardContent>
                             </Card>
 
-                            <Card className="bg-slate-900/50 border-slate-800">
+                            <Card className="bg-gray-50 border-gray-200">
                               <CardHeader>
-                                <CardTitle className="flex items-center text-primary">
+                                <CardTitle className="flex items-center text-blue-600">
                                   <Lightbulb className="w-5 h-5 mr-3" /> Structuring Answers
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="space-y-4">
                                 {(deepAnalysis?.analysis?.communication_coaching?.structuring_answers || selectedReport?.report?.communication_coaching?.structuring_answers || []).map((tip, i) => (
-                                  <li key={i} className="text-slate-300 list-none flex items-start">
-                                    <span className="text-primary mr-2">•</span> {tip}
+                                  <li key={i} className="text-gray-700 list-none flex items-start">
+                                    <span className="text-blue-600 mr-2">•</span> {tip}
                                   </li>
                                 ))}
                               </CardContent>
                             </Card>
                           </div>
 
-                          <Card className="bg-slate-900/50 border-slate-800">
+                          <Card className="bg-gray-50 border-gray-200">
                             <CardHeader>
-                              <CardTitle className="flex items-center text-primary">
+                              <CardTitle className="flex items-center text-blue-600">
                                 <Brain className="w-5 h-5 mr-3" /> Interview Tactics & Hacks
                               </CardTitle>
                             </CardHeader>
                             <CardContent className="grid md:grid-cols-2 gap-6">
                               <div>
-                                <h4 className="text-sm font-bold text-slate-500 uppercase mb-3">Immediate Fixes</h4>
+                                <h4 className="text-sm font-bold text-gray-600 uppercase mb-3">Immediate Fixes</h4>
                                 {(deepAnalysis?.analysis?.actionable_tips_and_tricks?.immediate_fixes || []).length > 0 
                                   ? deepAnalysis?.analysis?.actionable_tips_and_tricks?.immediate_fixes.map((tip, i) => (
-                                    <p key={i} className="text-slate-300 mb-2">• {tip}</p>
+                                    <p key={i} className="text-gray-700 mb-2">• {tip}</p>
                                   ))
-                                  : <p className="text-slate-500 text-sm">Focus on technical clarity and concise delivery.</p>}
+                                  : <p className="text-gray-500 text-sm">Focus on technical clarity and concise delivery.</p>}
                               </div>
                               <div>
-                                <h4 className="text-sm font-bold text-slate-500 uppercase mb-3">Professional Impact</h4>
+                                <h4 className="text-sm font-bold text-gray-600 uppercase mb-3">Professional Impact</h4>
                                 {(deepAnalysis?.analysis?.actionable_tips_and_tricks?.interview_hacks || []).length > 0
                                   ? deepAnalysis?.analysis?.actionable_tips_and_tricks?.interview_hacks.map((tip, i) => (
-                                    <p key={i} className="text-slate-300 mb-2">• {tip}</p>
+                                    <p key={i} className="text-gray-700 mb-2">• {tip}</p>
                                   ))
-                                  : <p className="text-slate-500 text-sm">Build rapport by asking thoughtful questions about the role.</p>}
+                                  : <p className="text-gray-500 text-sm">Build rapport by asking thoughtful questions about the role.</p>}
                               </div>
                             </CardContent>
                           </Card>
                         </>
                       ) : (
-                        <div className="p-12 text-center text-slate-500 border border-dashed border-slate-800 rounded-3xl">
+                        <div className="p-12 text-center text-gray-500 border border-dashed border-gray-300 rounded-3xl bg-gray-50">
                           Deep-dive coaching analysis is being generated...
                         </div>
                       )}
@@ -430,9 +430,9 @@ function Page() {
                     <TabsContent value="strategy" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       {(deepAnalysis?.analysis?.resume_vs_reality || selectedReport?.report?.resume_vs_reality) ? (
                         <div className="space-y-8">
-                          <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
-                            <div className="bg-primary/10 p-4 border-b border-slate-800">
-                              <h3 className="font-bold flex items-center text-primary">
+                          <Card className="bg-white border-gray-200 overflow-hidden">
+                            <div className="bg-blue-50 p-4 border-b border-gray-200">
+                              <h3 className="font-bold flex items-center text-blue-600">
                                 <FileSearch className="w-5 h-5 mr-3" /> Resume vs Reality Analysis
                               </h3>
                             </div>
@@ -440,19 +440,19 @@ function Page() {
                               <div>
                                 <h4 className="text-emerald-400 text-xs font-black uppercase mb-3">Verified Claims</h4>
                                 {(deepAnalysis?.analysis?.resume_vs_reality?.verified_claims || selectedReport?.report?.resume_vs_reality?.verified_claims || []).map((c, i) => (
-                                  <p key={i} className="text-slate-300 text-sm mb-2 opacity-80 decoration-emerald-500/50 underline-offset-4 underline">• {c}</p>
+                                  <p key={i} className="text-gray-700 text-sm mb-2 decoration-emerald-500 underline-offset-4 underline">• {c}</p>
                                 ))}
                               </div>
                               <div>
                                 <h4 className="text-amber-400 text-xs font-black uppercase mb-3">Exaggerations</h4>
                                 {(deepAnalysis?.analysis?.resume_vs_reality?.exaggerated_claims || selectedReport?.report?.resume_vs_reality?.exaggerated_claims || []).map((c, i) => (
-                                  <p key={i} className="text-slate-300 text-sm mb-2">• {c}</p>
+                                  <p key={i} className="text-gray-700 text-sm mb-2">• {c}</p>
                                 ))}
                               </div>
                               <div>
                                 <h4 className="text-red-400 text-xs font-black uppercase mb-3">Gap Missing Skills</h4>
                                 {(deepAnalysis?.analysis?.resume_vs_reality?.missing_skills || selectedReport?.report?.resume_vs_reality?.missing_skills || []).map((c, i) => (
-                                  <p key={i} className="text-slate-300 text-sm mb-2">• {c}</p>
+                                  <p key={i} className="text-gray-700 text-sm mb-2">• {c}</p>
                                 ))}
                               </div>
                             </CardContent>
@@ -460,28 +460,28 @@ function Page() {
 
                           <div className="grid md:grid-cols-2 gap-8">
                             <section className="space-y-4">
-                              <h3 className="text-xl font-bold flex items-center text-primary">
+                              <h3 className="text-xl font-bold flex items-center text-blue-600">
                                 📝 Recommended Resume Edits
                               </h3>
                               <div className="grid gap-3">
                                 {(deepAnalysis?.analysis?.strategic_recommendations?.resume_edits || selectedReport?.report?.strategic_recommendations?.resume_edits || []).map((edit, i) => (
-                                  <div key={i} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center">
-                                    <AlertCircle className="w-4 h-4 text-primary mr-3 flex-shrink-0" />
-                                    <span className="text-slate-300 text-sm">{edit}</span>
+                                  <div key={i} className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center">
+                                    <AlertCircle className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-700 text-sm">{edit}</span>
                                   </div>
                                 ))}
                               </div>
                             </section>
 
                             <section className="space-y-4">
-                              <h3 className="text-xl font-bold flex items-center text-primary">
+                              <h3 className="text-xl font-bold flex items-center text-blue-600">
                                 📚 High Priority Study Topics
                               </h3>
                               <div className="grid gap-3">
                                 {(deepAnalysis?.analysis?.strategic_recommendations?.study_focus || selectedReport?.report?.strategic_recommendations?.study_focus || []).map((topic, i) => (
-                                  <div key={i} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center">
-                                    <Target className="w-4 h-4 text-primary mr-3 flex-shrink-0" />
-                                    <span className="text-slate-300 text-sm">{topic}</span>
+                                  <div key={i} className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center">
+                                    <Target className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
+                                    <span className="text-gray-700 text-sm">{topic}</span>
                                   </div>
                                 ))}
                               </div>
@@ -489,7 +489,7 @@ function Page() {
                           </div>
                         </div>
                       ) : (
-                        <div className="p-12 text-center text-slate-500 border border-dashed border-slate-800 rounded-3xl">
+                        <div className="p-12 text-center text-gray-500 border border-dashed border-gray-300 rounded-3xl bg-gray-50">
                           Strategic strategy analysis is being generated...
                         </div>
                       )}
