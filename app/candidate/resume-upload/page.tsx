@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Upload, CheckCircle2, XCircle, FileText, Loader2, Briefcase } from "lucide-react";
+import { Upload, CheckCircle2, XCircle, FileText, Loader2, Briefcase, Clock } from "lucide-react";
 import {
   updateCandidateResume,
   getCandidateById,
@@ -61,108 +61,97 @@ function ResumeUploadContent() {
     }
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      setError("Please select a resume file");
-      return;
-    }
+  // Locate the handleUpload function in app/candidate/resume-upload/page.tsx
+const handleUpload = async () => {
+  if (!file) {
+    setError("Please select a resume file");
+    return;
+  }
 
-    if (!fetchedCandidateId) {
-      setError("No candidate profile linked. Please contact administrator.");
-      return;
-    }
+  if (!fetchedCandidateId) {
+    setError("No candidate profile linked. Please contact administrator.");
+    return;
+  }
+  
+  if (!interviewId) {
+    setError("Please select an interview to upload for.");
+    return;
+  }
+
+  setError(null);
+  setIsProcessing(true);
+
+  try {
+    toast.info("Uploading resume...");
+    const resumeUrl = await uploadResumeFile(file, fetchedCandidateId);
+
+    toast.info("Analyzing resume with AI...");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("candidate_name", user?.name || "");
+
+    const response = await fetch("/api/parse-resume", {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await response.json().catch(() => ({}));
     
-    if (!interviewId) {
-      setError("Please select an interview to upload for.");
-      return;
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to analyze resume");
     }
 
-    setError(null);
-    setIsProcessing(true);
+    const analysis = result.data;
 
-    try {
-      toast.info("Uploading resume...");
-      // Use fetchedCandidateId instead of context candidateId
-      const resumeUrl = await uploadResumeFile(file, fetchedCandidateId);
+    // FIX: Multiply the AI score by 10 to match your 0-100 threshold scale
+    const overallScore = (analysis.overallScore ?? 0); 
+    
+    const currentApp = applications.find(app => app.interviews.id === interviewId);
+    const threshold = currentApp?.interviews?.min_resume_score ?? 70;
+    
+    // Now both values are on the same scale (e.g., 70 >= 70)
+    const isEligible = overallScore >= threshold;
 
-      // Call backend AI resume analysis (LangChain + Gemini)
-      toast.info("Analyzing resume with AI...");
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("candidate_name", user?.name || "");
+    const resumeText = analysis.resumeText;
 
-      const response = await fetch("/api/parse-resume", {
-        method: "POST",
-        body: formData,
-      });
+    await updateCandidateResume(
+      fetchedCandidateId,
+      resumeUrl,
+      overallScore,
+      resumeText,
+      analysis,
+      interviewId 
+    );
 
-      const result = await response.json().catch(() => ({}));
-      
-      if (!response.ok) {
-        const message = result.error || "Failed to analyze resume";
-        // throw new Error(message);
-      }
+    setScore(overallScore);
+    setSkillsScore(analysis.skillsMatchScore ?? null);
+    setProjectsScore(analysis.projectRelevanceScore ?? null);
+    setExperienceScore(analysis.experienceSuitabilityScore ?? null);
+    setEligible(isEligible);
+    setUploaded(true);
+    
+    setApplications(prev => prev.map(app => 
+      app.interviews.id === interviewId 
+        ? { ...app, resume_score: overallScore, status: isEligible ? "Promoted" : "Not Promoted" } 
+        : app
+    ));
 
-      const analysis = result.data as {
-        skillsMatchScore: number;
-        projectRelevanceScore: number;
-        experienceSuitabilityScore: number;
-        overallScore: number;
-        overallRating: string;
-        resumeText?: string;
-      };
-
-      const overallScore = analysis.overallScore ?? 0;
-      
-      // Get the threshold for the specific interview
-      const currentApp = applications.find(app => app.interviews.id === interviewId);
-      const threshold = currentApp?.interviews?.min_resume_score ?? 70;
-      
-      const isEligible = overallScore >= threshold;
-
-      const resumeText = analysis.resumeText;
-
-      // Update candidate record using fetchedCandidateId AND interviewId
-      await updateCandidateResume(
-        fetchedCandidateId,
-        resumeUrl,
-        overallScore,
-        resumeText,
-        analysis,
-        interviewId 
-      );
-
-      setScore(overallScore);
-      setSkillsScore(analysis.skillsMatchScore ?? null);
-      setProjectsScore(analysis.projectRelevanceScore ?? null);
-      setExperienceScore(analysis.experienceSuitabilityScore ?? null);
-      setEligible(isEligible);
-      setUploaded(true);
-      
-      // Update local state for the selected application to reflect changes immediately
-      setApplications(prev => prev.map(app => 
-        app.interviews.id === interviewId 
-          ? { ...app, resume_score: overallScore, status: isEligible ? "Promoted" : "Not Promoted" } 
-          : app
-      ));
-
-      toast.success("Resume uploaded and analyzed successfully!");
-      
-      if (interviewIdParam) {
-          // Delay briefly then go back to details
-          setTimeout(() => {
-              router.push(`/candidate/interview-details/${interviewIdParam}`);
-          }, 1500);
-      }
-
-    } catch (err: any) {
-      console.error("Error uploading resume:", err);
-      setError(err.message || "Failed to upload resume. Please try again.");
-      toast.error(err.message || "Failed to upload resume");
-    } finally {
-      setIsProcessing(false);
+    toast.success("Resume uploaded and analyzed successfully!");
+    
+    if (interviewIdParam && isEligible) {
+        setTimeout(() => {
+            router.push(`/candidate/interview-details/${interviewIdParam}`);
+        }, 1500);
     }
-  };
+
+  } catch (err: any) {
+    console.error("Error uploading resume:", err);
+    setError(err.message || "Failed to upload resume.");
+    toast.error(err.message || "Failed to upload resume");
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   useEffect(() => {
     const fetchCandidateData = async () => {
@@ -357,7 +346,7 @@ function ResumeUploadContent() {
           )}
 
           {appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time) && (
-            <Alert variant="secondary">
+            <Alert variant="default">
               <Clock className="h-4 w-4" />
               <AlertTitle>Interview Not Started</AlertTitle>
               <AlertDescription>
