@@ -54,9 +54,9 @@ export async function getInterviews(): Promise<Interview[]> {
   const interviewsWithCounts = await Promise.all(
     data.map(async (interview: any) => {
       const { count } = await supabase
-        .from('candidates')
+        .from('candidate_interviews')
         .select('*', { count: 'exact', head: true })
-        .contains('interview_ids', [interview.id]);
+        .eq('interview_id', interview.id);
 
       return {
         id: interview.id,

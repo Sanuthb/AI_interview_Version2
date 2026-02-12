@@ -52,6 +52,14 @@ export const analysisFunction = inngest.createFunction(
             communicationScore: 0,
             skillsScore: 0,
             knowledgeScore: 0,
+            placementReadinessScore: 0,
+            radarData: {
+              Technical: 0,
+              Communication: 0,
+              Logic: 0,
+              Confidence: 0,
+              JDAlignment: 0
+            },
             summary: "Exited in middle of interview (No conversation data available).",
             communication_coaching: { verbal_delivery: [], structuring_answers: [] },
             resume_vs_reality: { verified_claims: [], exaggerated_claims: [], missing_skills: [] },
@@ -167,5 +175,6 @@ export const analysisFunction = inngest.createFunction(
     }
   },
 );
+
 
 // npx --ignore-scripts=false inngest-cli@latest dev

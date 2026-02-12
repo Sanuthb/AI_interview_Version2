@@ -32,21 +32,21 @@ export default function InterviewEndedPage() {
   }, [user]);
 
   if (loading) {
-     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">Loading...</div>;
+     return <div className="min-h-screen flex items-center justify-center bg-gray-50 ">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="max-w-md w-full text-center">
         <CardHeader>
           <div className="flex justify-center mb-4">
             {isMalpractice ? (
-              <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
-                <AlertTriangle className="h-12 w-12 text-red-600 dark:text-red-400" />
+              <div className="p-4 bg-red-100 rounded-full">
+                <AlertTriangle className="h-12 w-12 text-red-600 " />
               </div>
             ) : (
-              <div className="p-4 bg-green-100 dark:bg-green-900/30 rounded-full">
-                <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+              <div className="p-4 bg-green-100  rounded-full">
+                <CheckCircle2 className="h-12 w-12 text-green-600 " />
               </div>
             )}
           </div>

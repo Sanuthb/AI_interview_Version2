@@ -12,6 +12,14 @@ export interface AIReportData {
   communicationScore: number;
   skillsScore: number;
   knowledgeScore: number;
+  placementReadinessScore: number;
+  radarData: {
+    Technical: number;
+    Communication: number;
+    Logic: number;
+    Confidence: number;
+    JDAlignment: number;
+  };
   summary: string;
 
   // AI Coaching (Deep Dive)
@@ -53,32 +61,41 @@ export async function generateFinalReport(
       ${interviewTranscript.substring(0, 5000)}
 
       **Task:**
-      Analyze the candidate deeply based on the JD, Resume, and Interview performance.
-      Provide a structured JSON output with evaluation metrics AND coaching insights.
+      Analyze the candidate deeply based on the JD, Resume, and Interview performance. 
+      **STRICT REQUIREMENT: EVIDENCE-BASED FEEDBACK.** 
+      Do NOT provide generic tips like "Improve communication". Instead, provide quantifiable or citeable evidence (e.g., "Candidate used 'um' 12 times in the intro" or "Strong evidence provided for React hooks implementation in Project Alpha, but failed to explain the Virtual DOM concept when challenged").
 
       **Output Format (JSON Only):**
       {
-        "strengths": ["..", ".."],
-        "weaknesses": ["..", ".."],
+        "strengths": [".. (with specific session evidence)", ".."],
+        "weaknesses": [".. (with specific session evidence)", ".."],
         "hiringRecommendation": "Strong Hire" | "Hire" | "Weak Hire" | "No Hire",
-        "riskFlags": [".."],
+        "riskFlags": [".. (e.g., 'Generic answer used for behavioral prompt')"],
         "finalScore": 0-100,
         "communicationScore": 0-100,
         "skillsScore": 0-100,
         "knowledgeScore": 0-100,
-        "summary": "Short paragraph summary focusing on overall fit",
+        "placementReadinessScore": 0-100,
+        "radarData": {
+          "Technical": 0-100,
+          "Communication": 0-100,
+          "Logic": 0-100,
+          "Confidence": 0-100,
+          "JDAlignment": 0-100
+        },
+        "summary": "Deep-dive summary citing specific performance highlights.",
         "communication_coaching": {
-          "verbal_delivery": ["tip1", "tip2"],
-          "structuring_answers": ["tip1", "tip2"]
+          "verbal_delivery": ["Evidence-based tip (e.g., 'Watch filler words in technical explanations')"],
+          "structuring_answers": ["Evidence-based tip (e.g., 'Use STAR method more clearly for the conflict prompt')"]
         },
         "resume_vs_reality": {
-          "verified_claims": ["claim1"],
-          "exaggerated_claims": ["claim1"],
-          "missing_skills": ["skill1"]
+          "verified_claims": ["Citations of verified resume claims from session"],
+          "exaggerated_claims": ["Citations of claims candidate couldn't justify"],
+          "missing_skills": ["JD requirements candidate lacked evidence for"]
         },
         "strategic_recommendations": {
-          "resume_edits": ["edit1"],
-          "study_focus": ["topic1"]
+          "resume_edits": ["Specific resume changes based on this interview's gaps"],
+          "study_focus": ["High-priority technical topics to brush up on"]
         }
       }
     `;

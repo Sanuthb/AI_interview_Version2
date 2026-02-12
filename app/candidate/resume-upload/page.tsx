@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Upload, CheckCircle2, XCircle, FileText, Loader2, Briefcase, Clock } from "lucide-react";
+import { Upload, FileText, Loader2, Briefcase, Clock, XCircle } from "lucide-react";
 import {
   updateCandidateResume,
   getCandidateById,
@@ -37,26 +35,14 @@ function ResumeUploadContent() {
   const { user, loading } = useAuth();
   const [fetchedCandidateId, setFetchedCandidateId] = useState<string | null>(null);
   const [interviewId, setInterviewId] = useState<string | null>(null);
-  const [applications, setApplications] = useState<any[]>([]); 
   const [file, setFile] = useState<File | null>(null);
-  const [uploaded, setUploaded] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-  const [skillsScore, setSkillsScore] = useState<number | null>(null);
-  const [projectsScore, setProjectsScore] = useState<number | null>(null);
-  const [experienceScore, setExperienceScore] = useState<number | null>(null);
-  const [eligible, setEligible] = useState<boolean | null>(null);
+  const [applications, setApplications] = useState<any[]>([]); 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-      setUploaded(false);
-      setScore(null);
-      setSkillsScore(null);
-      setProjectsScore(null);
-      setExperienceScore(null);
-      setEligible(null);
       setError(null);
     }
   };
@@ -102,47 +88,25 @@ const handleUpload = async () => {
     }
 
     const analysis = result.data;
-
-    // FIX: Multiply the AI score by 10 to match your 0-100 threshold scale
-    const overallScore = (analysis.overallScore ?? 0); 
+    const overallScore = analysis.overallScore ?? 0;
     
     const currentApp = applications.find(app => app.interviews.id === interviewId);
     const threshold = currentApp?.interviews?.min_resume_score ?? 70;
-    
-    // Now both values are on the same scale (e.g., 70 >= 70)
     const isEligible = overallScore >= threshold;
-
-    const resumeText = analysis.resumeText;
 
     await updateCandidateResume(
       fetchedCandidateId,
       resumeUrl,
       overallScore,
-      resumeText,
+      analysis.resumeText,
       analysis,
       interviewId 
     );
 
-    setScore(overallScore);
-    setSkillsScore(analysis.skillsMatchScore ?? null);
-    setProjectsScore(analysis.projectRelevanceScore ?? null);
-    setExperienceScore(analysis.experienceSuitabilityScore ?? null);
-    setEligible(isEligible);
-    setUploaded(true);
-    
-    setApplications(prev => prev.map(app => 
-      app.interviews.id === interviewId 
-        ? { ...app, resume_score: overallScore, status: isEligible ? "Promoted" : "Not Promoted" } 
-        : app
-    ));
-
     toast.success("Resume uploaded and analyzed successfully!");
     
-    if (interviewIdParam && isEligible) {
-        setTimeout(() => {
-            router.push(`/candidate/interview-details/${interviewIdParam}`);
-        }, 1500);
-    }
+    // Direct redirect to details page where scores are displayed
+    router.push(`/candidate/interview-details/${interviewId}`);
 
   } catch (err: any) {
     console.error("Error uploading resume:", err);
@@ -249,20 +213,9 @@ const handleUpload = async () => {
               <Label htmlFor="interview-select">Select Interview</Label>
               <Select
                 value={interviewId || ""}
-                onValueChange={(value) => {
-                  setInterviewId(value);
-                  const app = applications.find(a => a.interviews.id === value);
-                  if (app && app.resume_score) {
-                    setScore(app.resume_score);
-                    const threshold = app.interviews.min_resume_score ?? 70;
-                    setEligible(app.resume_score >= threshold);
-                    setUploaded(true); 
-                  } else {
-                    setUploaded(false);
-                    setScore(null);
-                    setEligible(null);
-                  }
-                }}
+                  onValueChange={(value) => {
+                    setInterviewId(value);
+                  }}
               >
                 <SelectTrigger id="interview-select">
                   <SelectValue placeholder="Select an interview" />
@@ -296,11 +249,11 @@ const handleUpload = async () => {
                   type="file"
                   accept=".pdf,.doc,.docx"
                   onChange={handleFileChange}
-                  disabled={isProcessing || (uploaded && score !== null) || appForContext?.interviews?.status === "Closed"}
+                  disabled={isProcessing || !!appForContext?.resume_score || appForContext?.interviews?.status === "Closed"}
                   className="flex-1"
                 />
               </div>
-              {(uploaded && score !== null) && (
+              {!!appForContext?.resume_score && (
                 <p className="text-sm text-amber-600 font-medium">
                   Resume attempt locked. You cannot re-upload for this interview.
                 </p>
@@ -371,7 +324,7 @@ const handleUpload = async () => {
               !file || 
               isProcessing || 
               !fetchedCandidateId || 
-              (uploaded && score !== null) || 
+              (appForContext?.resume_score !== undefined && appForContext?.resume_score !== null) || 
               appForContext?.interviews?.status === "Closed" ||
               (appForContext?.interviews?.start_time && new Date() < new Date(appForContext.interviews.start_time)) ||
               (appForContext?.interviews?.end_time && new Date() > new Date(appForContext.interviews.end_time))
@@ -386,131 +339,12 @@ const handleUpload = async () => {
             ) : (
               <>
                 <Upload className="mr-2 h-4 w-4" />
-                {uploaded && score !== null ? "Upload Locked" : "Upload & Analyze"}
+                {(appForContext?.resume_score !== undefined && appForContext?.resume_score !== null) ? "Upload Locked" : "Upload & Analyze"}
               </>
             )}
           </Button>
         </CardContent>
       </Card>
-
-      {uploaded && score !== null && eligible !== null && (
-        <>
-          {/* AI Score Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Resume Score</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    Resume Match Score
-                  </span>
-                  <span className="text-2xl font-bold">{score}%</span>
-                </div>
-                <Progress value={score} className="h-3" />
-              </div>
-
-              {skillsScore !== null ||
-                projectsScore !== null ||
-                experienceScore !== null ? (
-                <div className="grid gap-2 text-sm">
-                  {skillsScore !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Skills Match
-                      </span>
-                      <span className="font-medium">{skillsScore}%</span>
-                    </div>
-                  )}
-                  {projectsScore !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Project Relevance
-                      </span>
-                      <span className="font-medium">{projectsScore}%</span>
-                    </div>
-                  )}
-                  {experienceScore !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Experience Suitability
-                      </span>
-                      <span className="font-medium">{experienceScore}%</span>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          {/* Eligibility Status */}
-          <Alert
-            className={
-              eligible
-                ? "border-green-500 bg-green-50 dark:bg-green-950"
-                : "border-red-500 bg-red-50 dark:bg-red-950"
-            }
-          >
-            {eligible ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-            ) : (
-              <XCircle className="h-4 w-4 text-red-600" />
-            )}
-            <AlertTitle
-              className={
-                eligible
-                  ? "text-green-800 dark:text-green-200"
-                  : "text-red-800 dark:text-red-200"
-              }
-            >
-              {eligible ? "Eligible" : "Not Eligible"}
-            </AlertTitle>
-            <AlertDescription
-              className={
-                eligible
-                  ? "text-green-700 dark:text-green-300"
-                  : "text-red-700 dark:text-red-300"
-              }
-            >
-              {eligible
-                ? "Congratulations! Your resume meets the requirements. You are eligible to proceed with the interview."
-                : `Your resume score is below the threshold (${applications.find(a => a.interviews.id === interviewId)?.interviews?.min_resume_score ?? 70}%). Please update your resume and try again.`}
-            </AlertDescription>
-          </Alert>
-
-          {/* Eligibility Badge */}
-          <div className="flex flex-col items-center gap-4">
-            <Badge
-              variant={eligible ? "default" : "destructive"}
-              className="text-lg px-6 py-2"
-            >
-              {eligible ? (
-                <>
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  Eligible for Interview
-                </>
-              ) : (
-                <>
-                  <XCircle className="mr-2 h-5 w-5" />
-                  Not Eligible
-                </>
-              )}
-            </Badge>
-
-            {eligible && (
-              <Button
-                size="lg"
-                onClick={handleTakeInterview}
-                disabled={appForContext?.interview_status === "Completed"}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8"
-              >
-                {appForContext?.interview_status === "Completed" ? "Interview Completed" : "Take Interview"}
-              </Button>
-            )}
-          </div>
-        </>
-      )}
       </div>
     </div>
   );

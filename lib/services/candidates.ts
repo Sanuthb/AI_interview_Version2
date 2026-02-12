@@ -430,30 +430,40 @@ export async function updateCandidateResume(
     // Fallback: This preserves old behavior but might spread the resume to all interviews if we sync them.
     // For now, let's just log a warning and try to find *an* interview or update all?
     // Let's update ALL entries in candidate_interviews for this candidate.
-     const { error } = await supabase
-      .from("candidate_interviews")
-      .update({
-        resume_url: resumeUrl,
-        resume_score: resumeScore,
-        resume_analysis: resumeAnalysis,
-        status: resumeScore >= 75 ? "Promoted" : "Not Promoted",
-        resume_status: resumeScore >= 75 ? "Passed" : "Failed",
-      })
-      .eq("candidate_id", candidate.id);
+      const threshold = 70; // Global fallback
+      const { error } = await supabase
+        .from("candidate_interviews")
+        .update({
+          resume_url: resumeUrl,
+          resume_score: resumeScore,
+          resume_analysis: resumeAnalysis,
+          status: resumeScore >= threshold ? "Promoted" : "Not Promoted",
+          resume_status: resumeScore >= threshold ? "Passed" : "Failed",
+        })
+        .eq("candidate_id", candidate.id);
       
      if (error) console.error("Error batch updating candidate interviews:", error);
      return;
   }
 
-  // 3. Update specific application in candidate_interviews
+  // 3. Fetch interview threshold to avoid "flip-flop"
+  const { data: interview } = await supabase
+    .from("interviews")
+    .select("min_resume_score")
+    .eq("id", interviewId)
+    .single();
+
+  const threshold = interview?.min_resume_score ?? 70;
+
+  // 4. Update specific application in candidate_interviews
   const { error } = await supabase
     .from("candidate_interviews")
     .update({
       resume_url: resumeUrl,
       resume_score: resumeScore,
       resume_analysis: resumeAnalysis,
-      status: resumeScore >= 75 ? "Promoted" : "Not Promoted",
-      resume_status: resumeScore >= 75 ? "Passed" : "Failed",
+      status: resumeScore >= threshold ? "Promoted" : "Not Promoted",
+      resume_status: resumeScore >= threshold ? "Passed" : "Failed",
     })
     .eq("candidate_id", candidate.id)
     .eq("interview_id", interviewId);
@@ -493,6 +503,35 @@ export async function markMalpractice(candidateId: string): Promise<void> {
     console.error("Error marking malpractice:", error);
     throw error;
   }
+}
+
+/**
+ * Automatically syncs candidate status based on thresholds
+ */
+export async function syncCandidateStatus(
+  candidateId: string,
+  interviewId: string
+): Promise<void> {
+  const { data: app } = await supabase
+    .from("candidate_interviews")
+    .select("resume_score, interview_status, interviews(min_resume_score)")
+    .eq("candidate_id", candidateId)
+    .eq("interview_id", interviewId)
+    .single();
+
+  if (!app) return;
+
+  const threshold = (app as any).interviews?.min_resume_score ?? 70;
+  const isEligible = (app.resume_score || 0) >= threshold;
+
+  await supabase
+    .from("candidate_interviews")
+    .update({
+      status: isEligible ? "Promoted" : "Not Promoted",
+      resume_status: isEligible ? "Passed" : "Failed",
+    })
+    .eq("candidate_id", candidateId)
+    .eq("interview_id", interviewId);
 }
 
 export async function getCandidateById(id: string): Promise<Candidate | null> {

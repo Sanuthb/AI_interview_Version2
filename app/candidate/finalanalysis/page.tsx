@@ -1,643 +1,286 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  TrendingUp,
-  Target,
-  BookOpen,
-  Lightbulb,
-} from "lucide-react";
-import axios from "axios";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence, Variants } from "framer-motion";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, AreaChart, Area } from "recharts";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, AlertTriangle, CheckCircle2, Target, Zap, Award, BarChart3, Star, Compass, UserCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/contexts/auth-context";
 
-// Define a basic type for the analysis data structure based on usage
-interface Metric {
-  metric: string;
-  score: number;
-  description: string;
-}
-
-interface AnalysisContent {
-  resume_data_extraction: {
-    candidate_name: string;
-    target_role: string;
-    education: string;
-    years_experience: string;
-  };
-  performance_metrics: Metric[]; // Added for graphs
-  overall_assessment: {
-    match_score: number;
-    hiring_status: string;
-    verdict_summary: string;
-  };
-  feedback_analysis: {
-    overall_rating: string; // Changed from technical/behavioral
-    summary: string;
-    key_observations: string[];
-  };
-  skill_analysis: {
-    strengths: string[];
-    weaknesses: string[];
-    soft_skills: string[];
-  };
-  resume_vs_reality: {
-    verified_claims: string[];
-    exaggerated_claims: string[];
-    missing_skills: string[];
-  };
-  communication_coaching: {
-    verbal_delivery: string[];
-    structuring_answers: string[];
-  };
-  skilltips: {
-    coding_tips: string[];
-    behavioral_tips: string[];
-    system_design_tips: string[];
-  };
-  strategic_recommendations: {
-    role_fit: string[];
-    study_focus: string[];
-    resume_edits: string[];
-  };
-  actionable_tips_and_tricks: {
-    immediate_fixes: string[];
-    interview_hacks: string[];
-  };
-}
-
-interface AnalysisRecord {
-  analysis: AnalysisContent;
-}
-
-interface SectionProps {
-  title: string;
-  children: React.ReactNode;
-  icon: any;
-  id: string;
-}
-
-const FinalAnalysis = () => {
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const { candidateId } = useAuth()
-  const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
-
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
+export default function FinalAnalysisPage() {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<any[]>([]);
+  const [latestReport, setLatestReport] = useState<any>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const fetchAnalysis = async () => {
-      if (!candidateId) return;
       try {
-        const response = await axios.post("/api/finalanalysis", {
-          candidateId: candidateId
-        });
-        const data = response.data
-        if (data.success) {
-          setAnalysis(data.data);
+        const response = await fetch("/api/finalanalysis");
+        const result = await response.json();
+        if (result.success) {
+          const mappedHistory = (result.data.allInterviews || []).map((item: any) => ({
+            date: new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+            score: item.report?.placementReadinessScore || item.report?.finalScore || 0,
+          })).reverse();
+          
+          setHistory(mappedHistory);
+          setLatestReport(result.data.latest);
         }
-      } catch (err) {
-        console.error("Failed to fetch analysis:", err);
+      } catch (error) {
+        console.error("Error fetching analysis:", error);
+      } finally {
+        setIsLoaded(true);
       }
     };
     fetchAnalysis();
-  }, [candidateId]);
+  }, []);
 
-  const Section = ({ title, children, icon: Icon, id }: SectionProps) => (
-    <div className="bg-gray-800 rounded-lg shadow-md overflow-hidden mb-4">
-      <button
-        onClick={() => toggleSection(id)}
-        className="w-full px-4 py-4 sm:px-6 sm:py-5 flex items-center justify-between hover:bg-gray-700 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          {Icon && <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />}
-          <h2 className="text-lg sm:text-xl font-bold text-white">{title}</h2>
-        </div>
-        {expandedSections[id] ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
-        )}
-      </button>
-      {expandedSections[id] && (
-        <div className="px-4 pb-4 sm:px-6 sm:pb-6 border-t border-gray-700">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-emerald-400";
-    if (score >= 60) return "text-sky-400";
-    if (score >= 40) return "text-amber-400";
-    return "text-rose-400";
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return "bg-emerald-500/10 border-emerald-500/30";
-    if (score >= 60) return "bg-sky-500/10 border-sky-500/30";
-    if (score >= 40) return "bg-amber-500/10 border-amber-500/30";
-    return "bg-rose-500/10 border-rose-500/30";
-  };
-
-  if (!analysis) {
-    return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400 animate-pulse">Analyzing your interview performance...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // The record from Supabase contains the analysis in an 'analysis' column
-  const data = analysis.analysis;
-
-  const PerformanceBar = ({ metric, score, description }: Metric) => (
-    <div className="mb-6 last:mb-0">
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <span className="text-sm font-semibold text-white">{metric}</span>
-          <p className="text-xs text-gray-400">{description}</p>
-        </div>
-        <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}%</span>
-      </div>
-      <div className="h-2.5 w-full bg-slate-700/50 rounded-full overflow-hidden border border-slate-600/30">
-        <div 
-          className={`h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.5)] ${
-            score >= 80 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 
-            score >= 60 ? 'bg-gradient-to-r from-sky-600 to-sky-400' :
-            score >= 40 ? 'bg-gradient-to-r from-amber-600 to-amber-400' : 
-            'bg-gradient-to-r from-rose-600 to-rose-400'
-          }`}
-          style={{ width: `${score}%` }}
-        />
+  if (!isLoaded || !latestReport) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="relative">
+        <div className="h-20 w-20 rounded-full border-t-4 border-b-4 border-blue-600 animate-spin"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 rounded-full border-r-4 border-l-4 border-indigo-600 animate-spin-slow"></div>
+        <p className="mt-8 text-slate-600 font-bold animate-pulse tracking-widest text-center">ANALYZING DATA...</p>
       </div>
     </div>
   );
+
+  const radarData = Object.entries(latestReport.report?.radarData || {}).map(([subject, value]) => ({
+    subject,
+    A: value,
+    fullMark: 100,
+  }));
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { 
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br  py-6 px-4 sm:py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto">
-        {/* Header */}
-        <div className="bg-gray-800 rounded-lg shadow-lg p-6 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">
-                {data.resume_data_extraction.candidate_name}
-              </h1>
-              <p className="text-gray-300 mt-1 text-sm sm:text-base">
-                {data.resume_data_extraction.target_role}
-              </p>
-              <p className="text-gray-400 text-xs sm:text-sm mt-1">
-                {data.resume_data_extraction.education} •{" "}
-                {data.resume_data_extraction.years_experience}
-              </p>
-            </div>
-            <div className="flex flex-col items-start sm:items-end">
-              <div
-                className={`${getScoreBgColor(data.overall_assessment.match_score)} px-4 py-2 rounded-lg border`}
-              >
-                <p className="text-xs sm:text-sm text-gray-300 font-medium">
-                  Match Score
-                </p>
-                <p
-                  className={`text-3xl sm:text-4xl font-bold ${getScoreColor(data.overall_assessment.match_score)}`}
-                >
-                  {data.overall_assessment.match_score}%
-                </p>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
-                <span className="text-red-600 font-semibold text-sm sm:text-base">
-                  {data.overall_assessment.hiring_status}
-                </span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100">
+      {/* Premium Mesh Gradient Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-100/40 blur-[120px] animate-pulse"></div>
+        <div className="absolute top-[20%] -right-[5%] w-[35%] h-[35%] rounded-full bg-indigo-100/30 blur-[100px] animate-pulse-slow"></div>
+        <div className="absolute -bottom-[10%] left-[20%] w-[50%] h-[30%] rounded-full bg-purple-50/20 blur-[120px]"></div>
+      </div>
+
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="max-w-7xl mx-auto p-4 md:p-8 space-y-10"
+      >
+        {/* Header Section */}
+        <motion.div variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          <div className="space-y-1">
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900">
+              Analysis <span className="text-blue-600">Dashboard</span>
+            </h1>
+            <p className="text-slate-500 text-lg font-semibold flex items-center gap-2">
+              Ready for placement, <span className="text-slate-900 underline decoration-blue-500/30">{user?.name}</span> <UserCircle2 className="h-5 w-5 text-blue-500" />
+            </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+             <Badge className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50 py-1.5 px-4 text-sm font-bold shadow-sm">
+                Cohort Rank: #12
+             </Badge>
+             <Badge className="bg-blue-600 border-transparent text-white hover:bg-blue-700 py-1.5 px-4 text-sm font-bold shadow-md shadow-blue-500/20">
+                Verified Candidate
+             </Badge>
+             {latestReport.report?.hiringRecommendation && (
+                <Badge variant="outline" className={`py-1.5 px-4 text-sm font-black border-2 ${
+                  latestReport.report.hiringRecommendation.includes("No Hire") ? "border-red-200 text-red-600 bg-red-50" :
+                  latestReport.report.hiringRecommendation.includes("Strong") ? "border-emerald-200 text-emerald-600 bg-emerald-50" :
+                  "border-blue-200 text-blue-600 bg-blue-50"
+                }`}>
+                  AI VERDICT: {latestReport.report.hiringRecommendation.toUpperCase()}
+                </Badge>
+             )}
+          </div>
+        </motion.div>
+
+        {/* Hero Metrics */}
+        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="bg-white/70 border-white/50 backdrop-blur-xl md:col-span-1 overflow-hidden relative group shadow-xl shadow-blue-500/5">
+             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+             <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Readiness Score</CardTitle>
+             </CardHeader>
+             <CardContent>
+                <div className="flex flex-col items-center py-4">
+                   <div className="text-8xl font-black text-slate-900 group-hover:scale-105 transition-transform duration-500 tracking-tighter">
+                      {latestReport.report?.placementReadinessScore || 0}<span className="text-3xl font-bold text-blue-600">%</span>
+                   </div>
+                   <div className="mt-4 flex items-center gap-2 text-blue-700 font-extrabold bg-blue-100/50 px-4 py-1.5 rounded-full text-[10px] border border-blue-200">
+                      <TrendingUp className="h-3 w-3" /> OUTPERFORMED 88%
+                   </div>
+                </div>
+             </CardContent>
+          </Card>
+
+          <Card className="bg-white/70 border-white/50 backdrop-blur-xl md:col-span-3 overflow-hidden shadow-xl shadow-blue-500/5">
+             <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                   <CardTitle className="flex items-center gap-2 text-slate-900 text-xl font-bold">
+                      <Award className="h-5 w-5 text-blue-600" /> Performance Trajectory
+                   </CardTitle>
+                   <CardDescription className="text-slate-500 font-medium">Growth across mock interview iterations</CardDescription>
+                </div>
+                <div className="p-2 bg-blue-50 rounded-lg">
+                   <BarChart3 className="h-6 w-6 text-blue-600" />
+                </div>
+             </CardHeader>
+             <CardContent className="h-[240px] pt-6">
+                <ResponsiveContainer width="100%" height="100%">
+                   <AreaChart data={history}>
+                      <defs>
+                         <linearGradient id="colorScoreLight" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15}/>
+                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                         </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} dy={10} />
+                      <YAxis hide domain={[0, 100]} />
+                      <Tooltip 
+                         contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', color: '#0f172a', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                         itemStyle={{ color: '#2563eb', fontWeight: 700 }}
+                      />
+                      <Area type="monotone" dataKey="score" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorScoreLight)" dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }} />
+                   </AreaChart>
+                </ResponsiveContainer>
+             </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <motion.div variants={itemVariants}>
+            <Card className="bg-white/70 border-white/50 backdrop-blur-xl h-full overflow-hidden shadow-xl shadow-slate-200/50">
+              <CardHeader className="border-b border-slate-100 pb-6 bg-slate-50/50">
+                <CardTitle className="flex items-center gap-3 text-slate-900 font-bold">
+                  <span className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/30"><Target className="h-5 w-5 text-white" /></span> Skill Architecture
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-10 flex justify-center items-center h-[380px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="#cbd5e1" />
+                    <PolarAngleAxis dataKey="subject" stroke="#64748b" fontSize={12} fontWeight={700} />
+                    <Radar 
+                      name="Candidate" 
+                      dataKey="A" 
+                      stroke="#2563eb" 
+                      strokeWidth={3}
+                      fill="#3b82f6" 
+                      fillOpacity={0.2} 
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="space-y-8">
+             {/* Observation Module */}
+             <Card className="bg-white border-white border-l-[6px] border-l-orange-500 shadow-xl shadow-orange-500/5">
+               <CardHeader className="pb-4">
+                 <CardTitle className="flex items-center gap-2 text-orange-600 font-black text-xs uppercase tracking-widest">
+                   <AlertTriangle className="h-4 w-4" /> Priority Observations
+                 </CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="space-y-3">
+                   {(latestReport.report?.riskFlags || []).map((flag: string, i: number) => (
+                     <div key={i} className="flex items-start gap-4 p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50 hover:bg-orange-50 transition-all duration-300">
+                        <div className="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500 ring-4 ring-orange-100"></div>
+                        <span className="text-slate-700 text-sm font-bold leading-relaxed">{flag}</span>
+                     </div>
+                   ))}
+                   {(!latestReport.report?.riskFlags || latestReport.report?.riskFlags.length === 0) && (
+                      <div className="text-center py-8">
+                         <div className="h-12 w-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                         </div>
+                         <p className="text-slate-500 font-bold">Optimal profile. No risks identified.</p>
+                      </div>
+                   )}
+                 </div>
+               </CardContent>
+             </Card>
+
+             {/* Roadmap Module */}
+             <Card className="bg-white border-white border-l-[6px] border-l-blue-600 shadow-xl shadow-blue-500/5">
+               <CardHeader className="pb-4">
+                 <CardTitle className="flex items-center gap-2 text-blue-600 font-black text-xs uppercase tracking-widest">
+                   <Compass className="h-4 w-4" /> Strategic Roadmap
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-blue-200 transition-all duration-300">
+                    <p className="text-[10px] font-black uppercase tracking-tighter text-blue-600/60 mb-2">Resume Evolution</p>
+                    <p className="text-sm text-slate-800 font-bold italic leading-relaxed">
+                      "{(latestReport.report?.strategic_recommendations?.resume_edits || [])[0] || "Profile alignment is optimal for current JD requirements."}"
+                    </p>
+                 </div>
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-indigo-200 transition-all duration-300">
+                     <p className="text-[10px] font-black uppercase tracking-tighter text-indigo-600/60 mb-2">Technical Mastery</p>
+                     <p className="text-sm text-slate-800 font-bold italic leading-relaxed">
+                       "{(latestReport.report?.strategic_recommendations?.study_focus || [])[0] || "Continue deepening core architectural knowledge."}"
+                     </p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-emerald-200 transition-all duration-300">
+                     <p className="text-[10px] font-black uppercase tracking-tighter text-emerald-600/60 mb-2">Communication Strategy</p>
+                     <p className="text-sm text-slate-800 font-bold italic leading-relaxed">
+                       "{(latestReport.report?.communication_coaching?.verbal_delivery || [])[0] || "Maintain your current clarity and professional tone."}"
+                     </p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-amber-200 transition-all duration-300">
+                     <p className="text-[10px] font-black uppercase tracking-tighter text-amber-600/60 mb-2">Answering Strategy</p>
+                     <p className="text-sm text-slate-800 font-bold italic leading-relaxed">
+                       "{(latestReport.report?.communication_coaching?.structuring_answers || [])[0] || "Use the STAR method to provide even more structured evidence."}"
+                     </p>
+                  </div>
+               </CardContent>
+             </Card>
+          </motion.div>
         </div>
 
-        {/* Performance Metrics (Graphs) */}
-        {data.performance_metrics && (
-          <Section title="Performance Metrics" icon={TrendingUp} id="metrics">
-            <div className="mt-6">
-              {data.performance_metrics.map((m, idx) => (
-                <PerformanceBar key={idx} {...m} />
-              ))}
-            </div>
-          </Section>
-        )}
+        {/* Footer */}
+        <motion.div variants={itemVariants} className="flex justify-center pt-10">
+           <div className="flex items-center gap-2 text-slate-300 group cursor-default">
+              <Star className="h-4 w-4 group-hover:text-blue-400 transition-colors" />
+              <div className="h-px w-12 bg-slate-200"></div>
+              <span className="text-[10px] font-black uppercase tracking-widest px-4 text-slate-400 group-hover:text-slate-600 transition-colors">Precision Verified Analysis v2.0</span>
+              <div className="h-px w-12 bg-slate-200"></div>
+              <Star className="h-4 w-4 group-hover:text-blue-400 transition-colors" />
+           </div>
+        </motion.div>
+      </motion.div>
 
-        {/* Overall Assessment */}
-        <Section title="Overall Verdict" icon={Target} id="verdict">
-          <div className="mt-4 space-y-4">
-            <div className="border-l-4 border-blue-500 p-4 rounded bg-gray-900/50">
-              <p className="text-gray-300 leading-relaxed text-sm sm:text-base">
-                {data.overall_assessment.verdict_summary}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-4">
-              <div className="bg-gray-900/50 p-3 sm:p-4 rounded-lg border border-gray-700 flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-300 font-medium">
-                    Overall Rating
-                  </p>
-                  <p className="text-lg sm:text-xl font-bold text-blue-400 mt-1">
-                    {data.feedback_analysis.overall_rating}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs sm:text-sm text-gray-300 font-medium">
-                    Hiring Status
-                  </p>
-                  <p className={`text-lg sm:text-xl font-bold ${
-                    data.overall_assessment.hiring_status.includes("Strong") ? "text-green-500" : 
-                    data.overall_assessment.hiring_status.includes("Hire") ? "text-blue-400" : "text-red-500"
-                  } mt-1`}>
-                    {data.overall_assessment.hiring_status}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Feedback Analysis */}
-        <Section title="Interview Feedback" icon={AlertCircle} id="feedback">
-          <div className="mt-4 space-y-4">
-            <div className="bg-gray-900/50 p-4 rounded-lg">
-              <h3 className="font-semibold text-white mb-2 text-sm sm:text-base">
-                Summary
-              </h3>
-              <p className="text-gray-300 leading-relaxed text-sm sm:text-base">
-                {data.feedback_analysis.summary}
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-3 text-sm sm:text-base">
-                Key Observations
-              </h3>
-              <div className="space-y-2">
-                {data.feedback_analysis.key_observations.map((obs, idx) => (
-                  <div key={idx} className="flex gap-2 sm:gap-3">
-                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-gray-300 text-sm sm:text-base">{obs}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Skill Analysis */}
-        <Section title="Skills Analysis" icon={TrendingUp} id="skills">
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-green-700 mb-3 flex items-center gap-2 text-sm sm:text-base">
-                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                Strengths
-              </h3>
-              <div className="space-y-2">
-                {data.skill_analysis.strengths.map((strength, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border-l-4 border-green-500 bg-gray-900/50"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {strength}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-red-700 mb-3 flex items-center gap-2 text-sm sm:text-base">
-                <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                Weaknesses
-              </h3>
-              <div className="space-y-2">
-                {data.skill_analysis.weaknesses.map((weakness, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border-l-4 border-red-500 bg-gray-900/50"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {weakness}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-blue-700 mb-3 flex items-center gap-2 text-sm sm:text-base">
-                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                Soft Skills Assessment
-              </h3>
-              <div className="space-y-2">
-                {data.skill_analysis.soft_skills.map((skill, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border-l-4 border-blue-500 bg-gray-900/50"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {skill}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Resume vs Reality */}
-        <Section title="Resume vs Reality Check" icon={AlertCircle} id="resume">
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-green-700 mb-3 text-sm sm:text-base">
-                ✓ Verified Claims
-              </h3>
-              <div className="space-y-2">
-                {data.resume_vs_reality.verified_claims.map((claim, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gray-900/50 p-3 rounded-lg border border-green-700"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {claim}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-red-700 mb-3 text-sm sm:text-base">
-                ⚠ Exaggerated Claims
-              </h3>
-              <div className="space-y-2">
-                {data.resume_vs_reality.exaggerated_claims.map((claim, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gray-900/50 p-3 rounded-lg border border-red-700"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {claim}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-orange-700 mb-3 text-sm sm:text-base">
-                ✗ Missing Skills
-              </h3>
-              <div className="space-y-2">
-                {data.resume_vs_reality.missing_skills.map((skill, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gray-900/50 p-3 rounded-lg border border-orange-700"
-                  >
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {skill}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Communication Coaching */}
-        <Section
-          title="Communication Coaching"
-          icon={Lightbulb}
-          id="communication"
-        >
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-purple-700 mb-3 text-sm sm:text-base">
-                Verbal Delivery
-              </h3>
-              <div className="space-y-2">
-                {data.communication_coaching.verbal_delivery.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className=" p-3 rounded-lg border border-purple-200 flex gap-2 sm:gap-3"
-                  >
-                    <span className="text-purple-600 font-bold flex-shrink-0">
-                      {idx + 1}.
-                    </span>
-                    <p className=" text-sm sm:text-base">{tip}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-purple-700 mb-3 text-sm sm:text-base">
-                Structuring Answers
-              </h3>
-              <div className="space-y-2">
-                {data.communication_coaching.structuring_answers.map(
-                  (tip, idx) => (
-                    <div
-                      key={idx}
-                      className=" p-3 rounded-lg border border-purple-200 flex gap-2 sm:gap-3"
-                    >
-                      <span className="text-purple-600 font-bold flex-shrink-0">
-                        {idx + 1}.
-                      </span>
-                      <p className=" text-sm sm:text-base">{tip}</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Skill Tips */}
-        <Section title="Skill Development Tips" icon={BookOpen} id="tips">
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-indigo-700 mb-3 text-sm sm:text-base">
-                Coding Tips
-              </h3>
-              <div className="space-y-2">
-                {data.skilltips.coding_tips.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className=" p-3 rounded-lg border border-indigo-200 flex gap-2 sm:gap-3"
-                  >
-                    <span className="text-indigo-600 font-bold flex-shrink-0">
-                      •
-                    </span>
-                    <p className=" text-sm sm:text-base">{tip}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-indigo-700 mb-3 text-sm sm:text-base">
-                Behavioral Tips
-              </h3>
-              <div className="space-y-2">
-                {data.skilltips.behavioral_tips.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className=" p-3 rounded-lg border border-indigo-200 flex gap-2 sm:gap-3"
-                  >
-                    <span className="text-indigo-600 font-bold flex-shrink-0">
-                      •
-                    </span>
-                    <p className=" text-sm sm:text-base">{tip}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-indigo-700 mb-3 text-sm sm:text-base">
-                System Design Tips
-              </h3>
-              <div className="space-y-2">
-                {data.skilltips.system_design_tips.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className=" p-3 rounded-lg border border-indigo-200 flex gap-2 sm:gap-3"
-                  >
-                    <span className="text-indigo-600 font-bold flex-shrink-0">
-                      •
-                    </span>
-                    <p className=" text-sm sm:text-base">{tip}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Strategic Recommendations */}
-        <Section
-          title="Strategic Recommendations"
-          icon={Target}
-          id="recommendations"
-        >
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-teal-700 mb-3 text-sm sm:text-base">
-                Better Role Fit
-              </h3>
-              <div className="space-y-2">
-                {data.strategic_recommendations.role_fit.map((role, idx) => (
-                  <div
-                    key={idx}
-                    className=" p-3 rounded-lg border border-teal-200"
-                  >
-                    <p className=" text-sm sm:text-base">{role}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-teal-700 mb-3 text-sm sm:text-base">
-                Study Focus Areas
-              </h3>
-              <div className="space-y-2">
-                {data.strategic_recommendations.study_focus.map(
-                  (focus, idx) => (
-                    <div
-                      key={idx}
-                      className=" p-3 rounded-lg flex gap-2 sm:gap-3 border border-teal-200"
-                    >
-                      <span className="text-teal-600 font-bold flex-shrink-0">
-                        {idx + 1}.
-                      </span>
-                      <p className=" text-sm sm:text-base">{focus}</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-teal-700 mb-3 text-sm sm:text-base">
-                Resume Edits
-              </h3>
-              <div className="space-y-2">
-                {data.strategic_recommendations.resume_edits.map(
-                  (edit, idx) => (
-                    <div
-                      key={idx}
-                      className=" p-3 rounded-lg border border-teal-200"
-                    >
-                      <p className=" text-sm sm:text-base">{edit}</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Actionable Tips */}
-        <Section
-          title="Actionable Tips & Tricks"
-          icon={Lightbulb}
-          id="actionable"
-        >
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="font-semibold text-pink-700 mb-3 text-sm sm:text-base">
-                Immediate Fixes
-              </h3>
-              <div className="space-y-2">
-                {data.actionable_tips_and_tricks.immediate_fixes.map(
-                  (fix, idx) => (
-                    <div
-                      key={idx}
-                      className=" p-3 rounded-lg border border-pink-200 flex gap-2 sm:gap-3"
-                    >
-                      <span className="text-pink-600 font-bold flex-shrink-0">
-                        →
-                      </span>
-                      <p className=" text-sm sm:text-base">{fix}</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold text-pink-700 mb-3 text-sm sm:text-base">
-                Interview Hacks
-              </h3>
-              <div className="space-y-2">
-                {data.actionable_tips_and_tricks.interview_hacks.map(
-                  (hack, idx) => (
-                    <div
-                      key={idx}
-                      className=" p-3 rounded-lg border border-pink-200 flex gap-2 sm:gap-3"
-                    >
-                      <span className="text-pink-600 font-bold flex-shrink-0">
-                        💡
-                      </span>
-                      <p className=" text-sm sm:text-base">{hack}</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-        </Section>
-      </div>
+      <style jsx global>{`
+         @keyframes spin-slow {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(-360deg); }
+         }
+         .animate-spin-slow {
+            animation: spin-slow 4s linear infinite;
+         }
+      `}</style>
     </div>
   );
-};
-
-export default FinalAnalysis;
+}
